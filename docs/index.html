@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Super Monkey</title>
+  <meta name="description"
+    content="A Tampermonkey-targeted userscript built with Vite. SuperMonkey boots in the top frame and coordinates isolated components through EventBus.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" href="supermonkey.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="supermonkey.svg">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify@5/dist/themes/core.min.css">
+  <link rel="stylesheet" media="(prefers-color-scheme: dark)"
+    href="//cdn.jsdelivr.net/npm/docsify@5/dist/themes/addons/core-dark.min.css" />
+  <link rel="stylesheet" media="(prefers-color-scheme: dark)"
+    href="//cdn.jsdelivr.net/npm/prism-themes@1/themes/prism-one-dark.min.css" />
+  <link rel="stylesheet" media="(prefers-color-scheme: light)"
+    href="//cdn.jsdelivr.net/npm/prism-themes@1/themes/prism-one-light.min.css" />
+  <style>
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --cover-bg-overlay: #111111;
+      }
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --cover-bg-overlay: #eeeeee;
+      }
+    }
+
+    :root {
+      --content-max-width: 1200px;
+    }
+
+    .sidebar-nav>ul>li>a,
+    .sidebar-nav>ul>li>span {
+      font-weight: bold;
+    }
+
+    .cover-main>p {
+      margin-bottom: 0;
+    }
+
+    section.cover .cover-main>img:first-child,
+    section.cover .cover-main>p>img:first-child {
+      max-width: min(320px, 40vw);
+      height: auto;
+    }
+
+    section.content {
+      padding: 0 2rem;
+    }
+
+    .markdown-section {
+      width: 100%;
+      max-width: var(--content-max-width);
+    }
+
+    .markdown-section table {
+      display: table;
+    }
+
+    .mermaid[data-processed="true"]>svg {
+      filter: invert(1);
+    }
+  </style>
+</head>
+
+<body class=" loading sidebar-chevron-left sidebar-toggle-chevron sidebar-group-box">
+  <div id="app"></div>
+  <script>
+    window.$docsify = {
+      name: 'Super Monkey',
+      logo: '/supermonkey.svg',
+      repo: 'leterio/super-monkey',
+      loadSidebar: true,
+      loadNavbar: true,
+      coverpage: true,
+      maxLevel: 5,
+      subMaxLevel: 5,
+      auto2top: true,
+      relativePath: true,
+      alias: {
+        '/.*/_sidebar.md': '/_sidebar.md',
+        '/.*/_navbar.md': '/_navbar.md',
+      },
+      search: {
+        paths: 'auto',
+        placeholder: 'Search',
+        noData: 'No results',
+        depth: 5,
+      },
+    }
+  </script>
+  <script src="//cdn.jsdelivr.net/npm/docsify@5"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify@5/dist/plugins/search.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-typescript.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-json.min.js"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: true });
+    window.mermaid = mermaid;
+  </script>
+  <script src="//unpkg.com/docsify-mermaid@2.0.1/dist/docsify-mermaid.js"></script>
+</body>
+
+</html>

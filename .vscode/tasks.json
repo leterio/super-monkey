@@ -1,0 +1,67 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "pnpm:dev",
+			"type": "shell",
+			"command": "if [ \"${IN_DEV_CONTAINER:-}\" = \"1\" ]; then if command -v fuser >/dev/null 2>&1; then fuser -k 5173/tcp 2>/dev/null || true; elif command -v lsof >/dev/null 2>&1; then lsof -ti :5173 | xargs -r kill -9 2>/dev/null || true; fi; fi; pnpm dev",
+			"options": {
+				"shell": {
+					"executable": "/bin/bash",
+					"args": ["-lc"]
+				}
+			},
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "vite",
+				"pattern": {
+					"regexp": "^$"
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".",
+					"endsPattern": "Local:.+"
+				}
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"focus": false
+			},
+			"runOptions": {
+				"runOn": "folderOpen"
+			}
+		},
+		{
+			"label": "docsify:serve",
+			"type": "shell",
+			"command": "if [ \"${IN_DEV_CONTAINER:-}\" = \"1\" ]; then if command -v fuser >/dev/null 2>&1; then fuser -k 3000/tcp 2>/dev/null || true; elif command -v lsof >/dev/null 2>&1; then lsof -ti :3000 | xargs -r kill -9 2>/dev/null || true; fi; fi; deadline=$((SECONDS + 180)); until command -v docsify >/dev/null 2>&1; do if [ \"$SECONDS\" -ge \"$deadline\" ]; then echo \"docsify not found on PATH after 180s\" >&2; exit 1; fi; sleep 2; done; docsify serve docs",
+			"options": {
+				"shell": {
+					"executable": "/bin/bash",
+					"args": ["-lc"]
+				}
+			},
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "docsify",
+				"pattern": {
+					"regexp": "^$"
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".",
+					"endsPattern": "Listening at.+"
+				}
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"focus": false
+			},
+			"runOptions": {
+				"runOn": "folderOpen"
+			}
+		}
+	]
+}

@@ -1,0 +1,14 @@
+.heading .subtitle {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+input.sm-cfg-edit-int,
+input.sm-cfg-share-int {
+    flex: 0 0 auto;
+    padding: 0.1em 0.5em;
+    font-size: 0.85em;
+    cursor: pointer;
+    width: fit-content;
+}

@@ -1,0 +1,33 @@
+:host,
+:root {
+    --sm-color-panel-bg: #555555;
+    --sm-color-panel-fg: #eee;
+    --sm-color-muted: #ddd;
+    --sm-color-separator: #999;
+    --sm-color-control-bg: #444;
+    --sm-color-control-border: #555;
+    --sm-color-control-fg: #ddd;
+    --sm-color-control-focus-border: #888;
+    --sm-color-danger-border: #bbb;
+    --sm-color-control-active-mid: #333;
+    --sm-color-checkbox-checked-bg: #666;
+    --sm-color-checkbox-check: #ccc;
+    --sm-color-backdrop: rgba(0, 0, 0, 0.4);
+    --sm-color-panel-shadow: rgba(0, 0, 0, 0.1);
+    --sm-color-state-progress: #e6c200;
+    --sm-color-state-done: #5c5;
+    --sm-color-state-error: #e55;
+    --sm-color-state-cancelled: #e67a00;
+    --sm-color-state-progress-bg: rgba(230, 194, 0, 0.65);
+    --sm-color-state-done-bg: rgba(85, 204, 85, 0.65);
+    --sm-color-state-error-bg: rgba(238, 85, 85, 0.65);
+    --sm-color-state-skipped-bg: rgba(140, 140, 150, 0.65);
+    --sm-color-state-cancelled-bg: rgba(230, 122, 0, 0.65);
+    --sm-color-progress-fill: #777;
+    --sm-color-link: #9cf;
+    --sm-color-link-hover: #cdf;
+    --sm-color-on-accent: #fff;
+    --sm-size-separator-block: 0.125em;
+    --sm-size-separator-list: 0.0625em;
+    --sm-size-panel-width: min(50em, calc(100vw - 1em));
+}

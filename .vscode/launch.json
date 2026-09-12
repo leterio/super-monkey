@@ -1,0 +1,37 @@
+{
+	"version": "0.2.0",
+	"inputs": [
+		{
+			"id": "debugUrl",
+			"type": "promptString",
+			"description": "Page URL to debug",
+			"default": "https://example.com/"
+		}
+	],
+	"configurations": [
+		{
+			"name": "Firefox",
+			"type": "firefox",
+			"request": "launch",
+			"url": "${input:debugUrl}",
+			"reAttach": true,
+			"reloadOnAttach": true,
+			"profileDir": "${userHome}/.firefox/${workspaceFolderBasename}",
+			"keepProfileChanges": true,
+			"webRoot": "${workspaceFolder}",
+			"timeout": 30,
+			"tabFilter": "*",
+			"suggestPathMappingWizard": true,
+			"pathMappings": [
+				{
+					"url": "https://localhost:5173/src",
+					"path": "${workspaceFolder}/src"
+				},
+				{
+					"url": "https://127.0.0.1:5173/src",
+					"path": "${workspaceFolder}/src"
+				}
+			]
+		}
+	]
+}

@@ -1,0 +1,124 @@
+:host {
+    position: fixed;
+    inset: 0;
+    opacity: 1 !important;
+    z-index: 2147483647;
+}
+
+.sm-int-menu {
+    position: absolute;
+    top: 5vh;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    max-height: min(90vh, calc(100vh - 5vh));
+    overflow: hidden;
+}
+
+.sm-int-menu .list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-top: 0;
+    padding-right: 0.5em;
+}
+
+.sm-int-menu .row-item {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5em;
+    padding: 0.5em 0;
+}
+
+.sm-int-menu .row-item:not(:last-child) {
+    border-bottom: var(--sm-size-separator-list) solid var(--sm-color-separator);
+}
+
+.sm-int-menu .row-name {
+    font-weight: 600;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.sm-int-menu .row-badges {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+.sm-int-menu .badge {
+    display: inline-block;
+    padding: 0.25em 0.5em;
+    font-size: 0.85em;
+    border-radius: 0.25em;
+    background: var(--sm-color-muted);
+    color: var(--sm-color-panel-bg);
+    min-width: 4em;
+    text-align: center;
+}
+
+.sm-int-menu .badge-active {
+    background: var(--sm-color-state-done);
+    color: var(--sm-color-on-accent);
+}
+
+.sm-int-menu .row-actions {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35em;
+    flex: 0 0 auto;
+}
+
+.row-actions button.button {
+    min-width: 4em;
+}
+
+.sm-int-menu .empty {
+    margin: 0.75em 0;
+    color: var(--sm-color-muted);
+}
+
+.sm-int-menu .footer {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    gap: 0.5em;
+    flex-shrink: 0;
+    padding-top: 0.75em;
+    border-top: var(--sm-size-separator-block) solid var(--sm-color-separator);
+}
+
+.sm-int-menu .log-level {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+}
+
+.sm-int-menu .log-level.field.row>label,
+.sm-int-menu .log-level.field.row>label>span {
+    flex: 0 0 auto;
+    overflow: visible;
+    text-overflow: unset;
+    white-space: nowrap;
+}
+
+.sm-int-menu .log-level.field.row>.control {
+    flex: 0 0 8em;
+    width: 8em;
+    min-width: 8em;
+}
+
+.sm-int-menu .log-level.field.row>.help {
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.sm-int-menu .footer-actions {
+    align-items: center;
+    flex: 0 0 auto;
+    gap: 0.5em;
+}

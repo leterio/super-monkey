@@ -1,0 +1,74 @@
+{
+	"name": "Super Monkey (Node + Vite)",
+	"build": {
+		"dockerfile": "Dockerfile",
+		"context": ".."
+	},
+	"remoteUser": "node",
+	"updateRemoteUserUID": true,
+	"mounts": [
+		"source=${localEnv:HOME}/.ssh,target=/home/node/.ssh,type=bind,readonly",
+		"source=${localEnv:HOME}/.gitconfig,target=/home/node/.gitconfig,type=bind,readonly"
+	],
+	"postCreateCommand": "bash .devcontainer/setup-dev.sh",
+	"forwardPorts": [
+		5173,
+		3000
+	],
+	"portsAttributes": {
+		"5173": {
+			"label": "Vite dev server (HTTPS)",
+			"onAutoForward": "notify",
+			"protocol": "https"
+		},
+		"3000": {
+			"label": "Docsify docs",
+			"onAutoForward": "notify"
+		}
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"esbenp.prettier-vscode",
+				"antfu.vite",
+				"christian-kohler.npm-intellisense",
+				"firefox-devtools.vscode-firefox-debug"
+			],
+			"settings": {
+				"[json]": {
+					"editor.defaultFormatter": "esbenp.prettier-vscode"
+				},
+				"[css]": {
+					"editor.defaultFormatter": "vscode.css-language-features"
+				},
+				"editor.defaultFormatter": "vscode.typescript-language-features",
+				"editor.formatOnSave": true,
+				"js/ts.tsdk.path": "node_modules/typescript/lib",
+				"js/ts.tsdk.promptToUseWorkspaceVersion": true,
+				"js/ts.tsserver.experimental.enableProjectDiagnostics": true,
+				"js/ts.validate.enabled": true,
+				"js/ts.updateImportsOnFileMove.enabled": "always",
+				"npm.packageManager": "pnpm",
+				"vite.autoStart": false,
+				"remote.autoForwardPorts": true,
+				"remote.autoForwardPortsSource": "output",
+				"remote.localPortHost": "localhost",
+				"debug.javascript.unmapMissingSources": true,
+				"debug.javascript.terminalOptions": {
+					"skipFiles": [
+						"<node_internals>/**"
+					]
+				},
+				"explorer.fileNesting.patterns": {
+					"*.js": "${capture}.js.map, ${capture}.min.js, ${capture}.d.ts",
+					"*.jsx": "${capture}.js",
+					"*.ts": "${capture}.js",
+					"*.tsx": "${capture}.ts",
+					"package.json": "package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lockb, bun.lock",
+					"tsconfig.json": "tsconfig.*.json",
+					"vite.config.ts": "vite.config.*.ts"
+				}
+			}
+		}
+	}
+}
