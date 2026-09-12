@@ -1,0 +1,8 @@
+{
+	"recommendations": [
+		"esbenp.prettier-vscode",
+		"antfu.vite",
+		"christian-kohler.npm-intellisense",
+		"firefox-devtools.vscode-firefox-debug"
+	]
+}

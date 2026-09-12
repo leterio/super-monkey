@@ -1,0 +1,94 @@
+.sm-pgmenu-buttons {
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 0.25em;
+    padding-bottom: 0.25em;
+    border-bottom: var(--sm-size-separator-block) solid var(--sm-color-separator);
+}
+
+.sm-pgmenu-buttons button.button {
+    width: 100%;
+}
+
+.sm-pgmenu-item {
+    font-size: 0.875em;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.25em;
+    margin-top: 0.25em;
+    padding: var(--sm-size-separator-block) 0.25em;
+    border: var(--sm-size-separator-block) solid var(--sm-color-separator);
+    box-sizing: border-box;
+    background: linear-gradient(to right,
+            var(--sm-color-progress-fill) var(--sm-pgmenu-item-progress, 0%),
+            transparent var(--sm-pgmenu-item-progress, 0%));
+}
+
+.sm-pgmenu-item[data-state="progress"] {
+    border-color: var(--sm-color-state-progress);
+}
+
+.sm-pgmenu-item[data-state="done"] {
+    border-color: var(--sm-color-state-done);
+}
+
+.sm-pgmenu-item[data-state="error"] {
+    border-color: var(--sm-color-state-error);
+}
+
+.sm-pgmenu-item[data-state="cancelled"] {
+    border-color: var(--sm-color-state-cancelled);
+}
+
+.sm-pgmenu-item .item-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sm-pgmenu-item .item-status {
+    flex: 0 0 auto;
+    text-align: right;
+}
+
+.sm-pgmenu-item .retry,
+.sm-pgmenu-item .cancel {
+    flex: 0 0 auto;
+    color: var(--sm-color-link);
+    text-decoration: underline;
+    cursor: pointer;
+    display: none;
+    text-align: right;
+}
+
+.sm-pgmenu-item .retry:hover,
+.sm-pgmenu-item .cancel:hover {
+    color: var(--sm-color-link-hover);
+}
+
+.sm-pgmenu-item[data-state="progress"]:hover .item-status {
+    display: none;
+}
+
+.sm-pgmenu-item[data-state="progress"]:hover .cancel {
+    display: inline-block;
+}
+
+.sm-pgmenu-item[data-state="error"] .item-status {
+    display: none;
+}
+
+.sm-pgmenu-item[data-state="error"] .cancel,
+.sm-pgmenu-item[data-state="error"] .retry {
+    display: inline-block;
+}
+
+.sm-pgmenu-item[data-state="done"] .item-status,
+.sm-pgmenu-item[data-state="done"] .cancel,
+.sm-pgmenu-item[data-state="done"] .retry {
+    display: none;
+}

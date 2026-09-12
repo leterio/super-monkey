@@ -1,0 +1,329 @@
+:host {
+    opacity: 1;
+    font-size: initial !important;
+    font-family: system-ui, sans-serif !important;
+    text-align: initial !important;
+    line-height: initial !important;
+}
+
+.sm-backdrop {
+    position: absolute;
+    inset: 0;
+    background: var(--sm-color-backdrop);
+    z-index: 2147483646;
+}
+
+.sm-panel {
+    width: var(--sm-size-panel-width);
+    flex-direction: column;
+    box-sizing: border-box;
+    padding: 1em;
+    background-color: var(--sm-color-panel-bg);
+    color: var(--sm-color-panel-fg);
+    border-radius: 0.5em;
+    box-shadow: 0 0 0.5em 0 var(--sm-color-panel-shadow);
+    opacity: 1;
+    z-index: 2147483647;
+}
+
+section {
+    position: relative;
+}
+
+section+section {
+    padding-top: 0.125em;
+}
+
+.sm-panel>section+section {
+    padding-top: 0.5em;
+}
+
+.row {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5em;
+}
+
+.column {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+}
+
+.sm-panel button.button,
+.sm-panel .control > button {
+    min-width: 8em;
+    padding: 0.25em 1em;
+}
+
+.help {
+    margin: 0;
+    font-size: 0.85em;
+    color: var(--sm-color-muted);
+}
+
+.help-button {
+    flex: 0 0 auto;
+    margin-left: 0.25em;
+    width: 1.5em;
+    height: 1.5em;
+    padding: 0;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.fold-button {
+    flex: 0 0 auto;
+    margin-right: 0.25em;
+    width: 1.5em;
+    height: 1.5em;
+    padding: 0;
+    line-height: 1;
+    cursor: pointer;
+    transform: rotate(90deg);
+}
+
+.folded>.heading .fold-button {
+    transform: none;
+}
+
+.folded>:not(.heading) {
+    display: none;
+}
+
+/* #region Heading */
+.heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    font-size: 1em;
+    border-bottom: var(--sm-size-separator-block) solid var(--sm-color-separator);
+}
+
+.heading h1 {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 1.25em;
+    font-weight: bold;
+    margin: 0;
+}
+
+.sm-panel>.heading h1 {
+    font-size: 1.5em;
+}
+
+.heading>.heading-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.25em;
+    margin-left: auto;
+}
+
+.subtitle {
+    margin: 0;
+}
+
+.heading .subtitle {
+    flex: 1 1 100%;
+    font-size: 0.9em;
+    color: var(--sm-color-muted);
+}
+
+.heading .close {
+    flex: 0 0 auto;
+    line-height: 0;
+    font-size: 1.25em;
+    width: 1.45em;
+    height: 1.45em;
+    cursor: pointer;
+}
+
+/* #endregion */
+
+/* #region Field */
+.field>label {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.field>label>span {
+    flex: 1;
+    min-width: 0;
+    font-size: 1em;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.field.row {
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.field.row>label {
+    flex: 3 1 0;
+    width: auto;
+}
+
+.field.row>.control {
+    flex: 2 1 0;
+    width: auto;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.field.row>.help {
+    flex: 1 1 100%;
+    margin-top: -0.5em;
+}
+
+.field:not(.help-visible) .help {
+    display: none;
+}
+
+.field.column {
+    align-items: stretch;
+}
+
+.field.column>.help {
+    margin-top: -0.5em;
+}
+
+.field.column>label,
+.field.column>.control {
+    width: 100%;
+}
+
+.field.column>label>span {
+    white-space: normal;
+}
+
+/* #endregion */
+
+/* #region Form controls */
+input:not([type="checkbox"]),
+select,
+textarea,
+.control > button {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+select,
+button,
+input[type="text"],
+input[type="number"],
+textarea {
+    border: 2px solid var(--sm-color-control-border);
+    background-color: var(--sm-color-control-bg);
+    padding: 1px 3px 3px;
+    border-radius: 3px;
+    line-height: 1.5em;
+    color: var(--sm-color-control-fg);
+}
+
+textarea {
+    min-height: 8em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+    resize: vertical;
+    overflow: hidden;
+    line-height: 1.35em;
+}
+
+button.button {
+    width: auto;
+    cursor: pointer;
+}
+
+.control > button {
+    width: 100%;
+    cursor: pointer;
+}
+
+button.button.primary {
+    font-weight: bold;
+}
+
+button.button.danger:enabled:hover,
+button.button.danger:enabled:focus,
+button.button.danger:enabled:focus-visible {
+    border-color: var(--sm-color-danger-border);
+}
+
+button:enabled:focus,
+button:enabled:focus-visible,
+button:enabled:hover,
+button:enabled:active,
+input[type="text"]:enabled:focus,
+input[type="text"]:enabled:focus-visible,
+input[type="text"]:enabled:hover,
+input[type="text"]:enabled:active,
+input[type="number"]:enabled:focus,
+input[type="number"]:enabled:focus-visible,
+input[type="number"]:enabled:hover,
+input[type="number"]:enabled:active,
+select:enabled:focus,
+select:enabled:focus-visible,
+select:enabled:hover,
+select:enabled:active,
+textarea:enabled:focus,
+textarea:enabled:focus-visible,
+textarea:enabled:hover,
+textarea:enabled:active {
+    background-color: var(--sm-color-control-bg);
+    border-color: var(--sm-color-control-focus-border);
+    outline: unset;
+}
+
+button:active {
+    background: linear-gradient(0deg, var(--sm-color-control-bg) 0%, var(--sm-color-control-active-mid) 50%, var(--sm-color-control-bg) 100%);
+}
+
+input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 1.5em;
+    height: 1.5em;
+    margin: 0;
+    border: 2px solid var(--sm-color-control-border);
+    border-radius: 3px;
+    background-color: var(--sm-color-control-bg);
+    box-sizing: border-box;
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+input[type="checkbox"]:enabled:hover,
+input[type="checkbox"]:enabled:focus,
+input[type="checkbox"]:enabled:focus-visible {
+    border-color: var(--sm-color-control-focus-border);
+    outline: unset;
+}
+
+input[type="checkbox"]:checked {
+    border-color: var(--sm-color-control-focus-border);
+    background-color: var(--sm-color-checkbox-checked-bg);
+    /* stroke matches --sm-color-checkbox-check (#ccc); data-URI cannot use CSS vars */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23ccc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.5l3 3 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 1em;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+
+/* #endregion */
