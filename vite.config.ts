@@ -5,7 +5,7 @@ import { version } from './package.json' with { type: 'json' };
 
 const REPO_URL = 'https://github.com/leterio/super-monkey';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [
     monkey({
       entry: 'src/main.ts',
@@ -31,10 +31,14 @@ export default defineConfig({
   server: {
     host: 'localhost',
     hmr: true,
-    https: {
-      key: fs.readFileSync('./certs/key.pem'),
-      cert: fs.readFileSync('./certs/cert.pem'),
-    },
-    cors: true
-  }
-});
+    cors: true,
+    ...(command === 'serve'
+      ? {
+          https: {
+            key: fs.readFileSync('./certs/key.pem'),
+            cert: fs.readFileSync('./certs/cert.pem'),
+          },
+        }
+      : {}),
+  },
+}));
