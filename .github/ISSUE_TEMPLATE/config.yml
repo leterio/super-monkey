@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/leterio/super-monkey/blob/main/docs/README.md
+    about: Product overview, modules, integrations, and how to run Super Monkey.
+  - name: Contributing
+    url: https://github.com/leterio/super-monkey/blob/main/docs/development/contributing.md
+    about: Development principles and definition of done before opening a pull request.
+  - name: Releases
+    url: https://github.com/leterio/super-monkey/releases
+    about: Install the latest userscript build and read release notes.

@@ -1,0 +1,62 @@
+name: Bug report
+description: Report something that does not work as expected.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Super Monkey. Fill in as much as you can so the issue is reproducible.
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug description
+      description: What went wrong?
+      placeholder: A short summary of the unexpected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps that reliably trigger the bug.
+      placeholder: |
+        1. Open …
+        2. Enable …
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What you expected to happen.
+    validations:
+      required: false
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened (include console errors if relevant).
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Super Monkey version or release tag, userscript manager and browser, site URL or integration name, and modules involved when known.
+      placeholder: |
+        Super Monkey: vX.Y.Z (or commit / local build)
+        Manager: Tampermonkey …
+        Browser: …
+        Site / integration: …
+        Modules: …
+    validations:
+      required: true
+  - type: checkboxes
+    id: searched
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true

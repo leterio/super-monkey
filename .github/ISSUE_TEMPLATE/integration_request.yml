@@ -1,0 +1,41 @@
+name: Integration request
+description: Ask for Super Monkey support on a site or service.
+title: "[Integration]: "
+labels: ["integration"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Request a new built-in or community integration. Be specific about URLs and the behavior you want.
+  - type: textarea
+    id: site
+    attributes:
+      label: Site name and example URL(s)
+      description: Name of the site or service and representative page URLs.
+      placeholder: |
+        Site: …
+        Example URLs:
+        - https://…
+    validations:
+      required: true
+  - type: textarea
+    id: desired
+    attributes:
+      label: Desired behavior
+      description: What should Super Monkey do on that site (historic filtering, downloads, keyboard nav, etc.)?
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Site notes
+      description: Login walls, SPA routing, infinite scroll, or other dynamic content that may matter.
+    validations:
+      required: false
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to help test and/or contribute an integration.
+          required: false

@@ -1,0 +1,35 @@
+name: Question / help
+description: Ask a question about using or developing Super Monkey.
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Prefer the documentation first when possible. Use this form when you still need help.
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What you already tried and the setup you are using.
+      placeholder: |
+        Goal: …
+        Tried: …
+        Manager / browser / version: …
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What do you need clarified?
+    validations:
+      required: true
+  - type: input
+    id: docs
+    attributes:
+      label: Relevant docs link
+      description: Link to a docs page if you already found one.
+      placeholder: https://github.com/leterio/super-monkey/blob/main/docs/…
+    validations:
+      required: false
