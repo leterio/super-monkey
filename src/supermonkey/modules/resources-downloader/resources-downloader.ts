@@ -12,8 +12,9 @@ import type { NotificationEntry } from "../notification-bar/entries/notification
 import { ProgressMenuEntry } from "../notification-bar/entries/progress-menu/progress-menu";
 import { ResourcesDecorator } from "./decorator/decorator";
 import { DownloadOrchestrator } from "./download/orchestrator";
+import { BUILTIN_RESOURCES_MAPPINGS } from "./mapping/builtin";
 import { ResourcesMapper } from "./mapping/mapper";
-import type { Resource } from "./metadata";
+import type { Resource, ResourcesMapping } from "./metadata";
 import decorationCss from "./resources-decoration.css?raw";
 import type { ResourcesDownloaderOpts } from "./resources-downloader-opts";
 import iconSvgRaw from "./save-svgrepo-com.svg?raw";
@@ -59,16 +60,17 @@ export class ResourcesDownloader extends Module<ResourcesDownloaderOpts> {
                 { label: "Cancel All", onClick: this.onCancelAllClick },
             ],
         });
+        const mappings = ResourcesDownloader.consolidateMappings(opts.mappings);
         this.resourcesMapper = new ResourcesMapper(
-            opts.mappings,
+            mappings,
             opts.entryPoints!,
             (resources) => this.registerResources(resources),
         );
-        this.decorator = new ResourcesDecorator(opts.mappings);
+        this.decorator = new ResourcesDecorator(mappings);
         this.downloadOrchestrator = new DownloadOrchestrator(
             this.progressMenu,
             this.resources,
-            opts.mappings,
+            mappings,
             opts.downloadModes ?? [],
             this.parallelDownloadsConfiguration,
         );
@@ -146,4 +148,13 @@ export class ResourcesDownloader extends Module<ResourcesDownloaderOpts> {
         this.log.debug("Handling menu cancel all click");
         this.downloadOrchestrator.cancelAll();
     };
+
+    private static consolidateMappings(
+        userMappings: Record<string, ResourcesMapping>,
+    ): Record<string, ResourcesMapping> {
+        return {
+            ...BUILTIN_RESOURCES_MAPPINGS,
+            ...userMappings,
+        };
+    }
 }
