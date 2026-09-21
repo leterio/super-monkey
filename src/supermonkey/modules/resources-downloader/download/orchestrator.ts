@@ -17,6 +17,7 @@ import {
     ResourcesMapping,
     ResourcesMappingLeaf,
 } from "../metadata";
+import { ConcurrencyLimiter } from "./concurrency-limiter";
 import { DownloadExecutor } from "./executor";
 
 type DownloadBranch = {
@@ -32,6 +33,10 @@ export class DownloadOrchestrator {
     private readonly downloadExecutor: DownloadExecutor = new DownloadExecutor();
     private readonly customModes: ReadonlyMap<string, DownloadMode>;
     private readonly abortControllers = new Map<ResourceLeaf, AbortController>();
+    private readonly executionQueue: ResourceLeaf[] = [];
+    private readonly executing = new Set<ResourceLeaf>();
+    private readonly pendingRetry = new Map<ResourceLeaf, ReturnType<typeof setTimeout>>();
+    private readonly executionLimiter: ConcurrencyLimiter;
 
     constructor(
         private readonly notificationIcon: ProgressMenuEntry,
@@ -39,8 +44,15 @@ export class DownloadOrchestrator {
         private readonly mappings: Record<string, ResourcesMapping>,
         downloadModes: readonly DownloadMode[] = [],
         private readonly parallelDownloadsConfiguration?: NumberConfiguration,
+        private readonly downloadRetriesConfiguration?: NumberConfiguration,
+        private readonly downloadRetryIntervalMsConfiguration?: NumberConfiguration,
     ) {
         this.customModes = new Map(downloadModes.map((mode) => [mode.name, mode]));
+        this.executionLimiter = new ConcurrencyLimiter(this.resolveParallelSlots());
+        this.parallelDownloadsConfiguration?.watch(() => {
+            this.executionLimiter.setCapacity(this.resolveParallelSlots());
+            this.pumpExecutionQueue();
+        });
     }
 
     async start(resource: Resource): Promise<void> {
@@ -49,7 +61,7 @@ export class DownloadOrchestrator {
         }
 
         if (resource.type === "leaf") {
-            await this.startLeaf(resource);
+            this.beginFreshAdmit(resource);
             return;
         }
 
@@ -57,7 +69,9 @@ export class DownloadOrchestrator {
             .filter((leaf) => leaf.state !== ItemState.PROGRESS);
 
         const uniqueLeaves = this.takeUniqueUrlLeaves(leaves);
-        await this.runWithConcurrency(uniqueLeaves, (leaf) => this.startLeaf(leaf));
+        for (const leaf of uniqueLeaves) {
+            this.beginFreshAdmit(leaf);
+        }
     }
 
     async downloadAll(): Promise<void> {
@@ -69,35 +83,60 @@ export class DownloadOrchestrator {
             );
 
         const uniqueLeaves = this.takeUniqueUrlLeaves(leaves);
-        await this.runWithConcurrency(uniqueLeaves, (leaf) => this.startLeaf(leaf));
+        for (const leaf of uniqueLeaves) {
+            if (
+                this.executionQueue.includes(leaf)
+                || this.executing.has(leaf)
+                || this.pendingRetry.has(leaf)
+            ) {
+                continue;
+            }
+
+            this.beginFreshAdmit(leaf);
+        }
     }
 
     async retryAll(): Promise<void> {
         const leaves = this.collectSessionLeaves()
             .filter((leaf) => leaf.state === ItemState.ERROR);
 
-        await this.runWithConcurrency(leaves, (leaf) => this.startLeaf(leaf));
+        for (const leaf of leaves) {
+            this.beginFreshAdmit(leaf);
+        }
     }
 
     cancel(leaf: ResourceLeaf): void {
-        const controller = this.abortControllers.get(leaf);
-        if (controller != null) {
-            controller.abort();
+        const wasQueued = this.executionQueue.includes(leaf);
+        const wasPendingRetry = this.pendingRetry.has(leaf);
+        const wasExecuting = this.abortControllers.has(leaf) || this.executing.has(leaf);
+
+        this.invalidateQueued(leaf);
+
+        if (wasExecuting) {
             return;
         }
 
-        if (leaf.state !== ItemState.ERROR) {
-            return;
+        if (wasQueued || wasPendingRetry || leaf.state === ItemState.ERROR) {
+            this.log.debug(
+                wasQueued || wasPendingRetry ? "Cancelled queued download" : "Dismissing failed download",
+                leaf,
+            );
+            this.destroyAllProgressItems(leaf);
+            this.applyState(leaf, ItemState.CANCELLED);
+            this.bubble(leaf);
+            this.syncNotification();
         }
-
-        this.log.debug("Dismissing failed download", leaf);
-        this.destroyAllProgressItems(leaf);
-        this.applyState(leaf, ItemState.CANCELLED);
-        this.bubble(leaf);
-        this.syncNotification();
     }
 
     cancelAll(): void {
+        for (const leaf of [...this.pendingRetry.keys()]) {
+            this.cancel(leaf);
+        }
+
+        for (const leaf of [...this.executionQueue]) {
+            this.cancel(leaf);
+        }
+
         for (const leaf of this.collectSessionLeaves()) {
             if (leaf.state === ItemState.PROGRESS) {
                 this.cancel(leaf);
@@ -109,8 +148,118 @@ export class DownloadOrchestrator {
         return this.aggregateSession() === ItemState.PROGRESS;
     }
 
-    private async startLeaf(leaf: ResourceLeaf): Promise<void> {
-        if (leaf.state === ItemState.PROGRESS) {
+    /**
+     * Returns false when the leaf was skipped (already active) or URL missing (ERROR applied).
+     */
+    private admitLeaf(leaf: ResourceLeaf): boolean {
+        if (
+            this.executionQueue.includes(leaf)
+            || this.executing.has(leaf)
+            || this.pendingRetry.has(leaf)
+            || leaf.state === ItemState.PROGRESS
+        ) {
+            return false;
+        }
+
+        const url = this.resolveLeafUrl(leaf);
+        if (url == null) {
+            this.log.error("Failed to resolve resource url for element", leaf.element);
+            this.destroyAllProgressItems(leaf);
+            this.applyState(leaf, ItemState.ERROR);
+            this.bubble(leaf);
+            this.syncNotification();
+            return false;
+        }
+
+        leaf.attempt ??= 1;
+        this.destroyAllProgressItems(leaf);
+        this.ensureMenuItem(leaf, url);
+        this.applyState(leaf, ItemState.PROGRESS);
+        leaf.progress?.setProgress(0);
+        this.bubble(leaf);
+        this.syncNotification();
+
+        this.enqueueForExecution(leaf);
+        return true;
+    }
+
+    /** Manual / fresh entry: clear queue membership and pending retry, reset attempt, admit. */
+    private beginFreshAdmit(leaf: ResourceLeaf): void {
+        this.invalidateQueued(leaf);
+        leaf.attempt = 1;
+        this.admitLeaf(leaf);
+    }
+
+    private invalidateQueued(leaf: ResourceLeaf): void {
+        const queueIndex = this.executionQueue.indexOf(leaf);
+        if (queueIndex >= 0) {
+            this.executionQueue.splice(queueIndex, 1);
+        }
+
+        const timer = this.pendingRetry.get(leaf);
+        if (timer != null) {
+            clearTimeout(timer);
+            this.pendingRetry.delete(leaf);
+        }
+
+        const controller = this.abortControllers.get(leaf);
+        if (controller != null) {
+            controller.abort();
+        }
+    }
+
+    private scheduleAutoRetry(leaf: ResourceLeaf): void {
+        const existing = this.pendingRetry.get(leaf);
+        if (existing != null) {
+            clearTimeout(existing);
+        }
+
+        const ms = Math.min(
+            30000,
+            Math.max(1000, this.downloadRetryIntervalMsConfiguration?.value ?? 1000),
+        );
+
+        const handle = setTimeout(() => {
+            if (this.pendingRetry.get(leaf) !== handle) {
+                return;
+            }
+
+            this.pendingRetry.delete(leaf);
+            if (leaf.state !== ItemState.ERROR) {
+                return;
+            }
+
+            leaf.attempt = (leaf.attempt ?? 1) + 1;
+            this.admitLeaf(leaf);
+        }, ms);
+
+        this.pendingRetry.set(leaf, handle);
+    }
+
+    private enqueueForExecution(leaf: ResourceLeaf): void {
+        if (this.executionQueue.includes(leaf) || this.executing.has(leaf)) {
+            return;
+        }
+
+        this.executionQueue.push(leaf);
+        this.pumpExecutionQueue();
+    }
+
+    private pumpExecutionQueue(): void {
+        const slots = this.resolveParallelSlots();
+
+        while (this.executionQueue.length > 0 && this.executing.size < slots) {
+            const leaf = this.executionQueue.shift()!;
+            this.executing.add(leaf);
+            void this.runLeafPipeline(leaf).finally(() => {
+                this.executing.delete(leaf);
+                this.pumpExecutionQueue();
+            });
+        }
+    }
+
+    private async runLeafPipeline(leaf: ResourceLeaf): Promise<void> {
+        if (leaf.state !== ItemState.PROGRESS) {
             return;
         }
 
@@ -123,13 +272,6 @@ export class DownloadOrchestrator {
             this.syncNotification();
             return;
         }
-
-        this.destroyAllProgressItems(leaf);
-        this.ensureMenuItem(leaf, url);
-        this.applyState(leaf, ItemState.PROGRESS);
-        leaf.progress?.setProgress(0);
-        this.bubble(leaf);
-        this.syncNotification();
 
         const controller = new AbortController();
         this.abortControllers.set(leaf, controller);
@@ -151,6 +293,11 @@ export class DownloadOrchestrator {
             } else {
                 this.log.error("Failed to download resource", leaf, error);
                 this.applyState(leaf, ItemState.ERROR);
+                const maxRetries = this.downloadRetriesConfiguration?.value ?? 0;
+                const attempt = leaf.attempt ?? 1;
+                if (attempt <= maxRetries) {
+                    this.scheduleAutoRetry(leaf);
+                }
             }
         } finally {
             this.abortControllers.delete(leaf);
@@ -220,22 +367,23 @@ export class DownloadOrchestrator {
             const stepEnd = stepStart + stepBudget;
 
             const results: DownloadBranch[][] = Array.from({ length: branches.length }, () => []);
-            await this.runWithConcurrency(
-                branches.map((branch, index) => ({ branch, index })),
-                async ({ branch, index }) => {
-                    const fetched = await this.downloadExecutor.fetchDocumentStep(
-                        branch.url,
-                        element,
-                        step,
-                        (httpProgress) => {
-                            DownloadOrchestrator.reportHttpProgress(
-                                httpProgress,
-                                stepStart,
-                                stepEnd,
-                                (progress, statusText) => branch.progress.setProgress(progress, statusText),
-                            );
-                        },
-                        signal,
+            await Promise.all(
+                branches.map(async (branch, index) => {
+                    const fetched = await this.executionLimiter.run(() =>
+                        this.downloadExecutor.fetchDocumentStep(
+                            branch.url,
+                            element,
+                            step,
+                            (httpProgress) => {
+                                DownloadOrchestrator.reportHttpProgress(
+                                    httpProgress,
+                                    stepStart,
+                                    stepEnd,
+                                    (progress, statusText) => branch.progress.setProgress(progress, statusText),
+                                );
+                            },
+                            signal,
+                        )
                     );
 
                     const resolvedUrls = DownloadOrchestrator.dedupeUrls(
@@ -249,8 +397,7 @@ export class DownloadOrchestrator {
                     }
 
                     results[index] = this.expandBranchUrls(branch, resolvedUrls, leaf, stepEnd);
-                },
-                false,
+                }),
             );
 
             branches = DownloadOrchestrator.dedupeBranches(results.flat());
@@ -302,7 +449,7 @@ export class DownloadOrchestrator {
             throw new Error(`Download mode "${mode.name}" is missing a final download step`);
         }
 
-        await this.runWithConcurrency([...branches], async (branch) => {
+        await Promise.all(branches.map(async (branch) => {
             await this.runFinalDownload(
                 branch.url,
                 finalStep,
@@ -311,7 +458,7 @@ export class DownloadOrchestrator {
                 90,
                 100,
             );
-        }, false);
+        }));
     }
 
     private async runFinalDownload(
@@ -322,18 +469,20 @@ export class DownloadOrchestrator {
         rangeStart = 0,
         rangeEnd = 100,
     ): Promise<void> {
-        await this.downloadExecutor.downloadUrl(
-            url,
-            step,
-            (httpProgress: HttpProgress) => {
-                DownloadOrchestrator.reportHttpProgress(
-                    httpProgress,
-                    rangeStart,
-                    rangeEnd,
-                    setProgress,
-                );
-            },
-            signal,
+        await this.executionLimiter.run(() =>
+            this.downloadExecutor.downloadUrl(
+                url,
+                step,
+                (httpProgress: HttpProgress) => {
+                    DownloadOrchestrator.reportHttpProgress(
+                        httpProgress,
+                        rangeStart,
+                        rangeEnd,
+                        setProgress,
+                    );
+                },
+                signal,
+            )
         );
 
         setProgress(rangeEnd);
@@ -343,7 +492,7 @@ export class DownloadOrchestrator {
     private createBranchMenuItem(leaf: ResourceLeaf, label: string): ProgressItemHandle {
         const handle = this.notificationIcon.mapItem(label, {
             onRetry: () => {
-                void this.start(leaf);
+                this.beginFreshAdmit(leaf);
             },
             onCancel: () => {
                 this.cancel(leaf);
@@ -379,7 +528,7 @@ export class DownloadOrchestrator {
 
         leaf.progress = this.notificationIcon.mapItem(label, {
             onRetry: () => {
-                void this.start(leaf);
+                this.beginFreshAdmit(leaf);
             },
             onCancel: () => {
                 this.cancel(leaf);
@@ -524,34 +673,6 @@ export class DownloadOrchestrator {
     private resolveParallelSlots(): number {
         const configured = this.parallelDownloadsConfiguration?.value ?? 10;
         return Math.min(50, Math.max(1, configured));
-    }
-
-    private async runWithConcurrency<T>(
-        items: readonly T[],
-        worker: (item: T) => Promise<void>,
-        settle = true,
-    ): Promise<void> {
-        if (items.length === 0) {
-            return;
-        }
-
-        const slots = this.resolveParallelSlots();
-        let nextIndex = 0;
-
-        const runners = Array.from({ length: Math.min(slots, items.length) }, async () => {
-            while (nextIndex < items.length) {
-                const index = nextIndex;
-                nextIndex += 1;
-                await worker(items[index]!);
-            }
-        });
-
-        if (settle) {
-            await Promise.allSettled(runners);
-            return;
-        }
-
-        await Promise.all(runners);
     }
 
     private static reportHttpProgress(
