@@ -17,6 +17,8 @@ export default defineConfig(({ command }) => ({
         author: 'Vinicius Leterio',
         version,
         homepageURL: REPO_URL,
+        updateURL: `${REPO_URL}/releases/latest/download/super-monkey.user.js`,
+        downloadURL: `${REPO_URL}/releases/latest/download/super-monkey.user.js`,
         supportURL: `${REPO_URL}/issues`,
         match: [
           'http://*/*',
@@ -34,11 +36,11 @@ export default defineConfig(({ command }) => ({
     cors: true,
     ...(command === 'serve'
       ? {
-          https: {
-            key: fs.readFileSync('./certs/key.pem'),
-            cert: fs.readFileSync('./certs/cert.pem'),
-          },
-        }
+        https: {
+          key: fs.readFileSync('./certs/key.pem'),
+          cert: fs.readFileSync('./certs/cert.pem'),
+        },
+      }
       : {}),
   },
 }));
