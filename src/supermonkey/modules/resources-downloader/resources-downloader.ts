@@ -6,6 +6,7 @@ import type { BeforeUnloadEventPayload } from "../../lifecycle/events";
 import { injectStyle } from "../../utils/dom/style";
 import { TOKENS_CSS } from "../../utils/ui/ui-builder";
 import type { Configuration } from "../configuration/configuration";
+import { BooleanConfiguration } from "../configuration/impl/boolean";
 import { NumberConfiguration } from "../configuration/impl/number";
 import { Module } from "../module";
 import type { NotificationEntry } from "../notification-bar/entries/notification-entry";
@@ -27,11 +28,23 @@ const DESCRIPTION = "Maps and downloads resources from Content Manager listing a
  * Opts must already be normalized by {@link normalizeResourcesDownloaderOpts} (via ModuleLoader).
  */
 export class ResourcesDownloader extends Module<ResourcesDownloaderOpts> {
-    private readonly progressMenu: ProgressMenuEntry;
-    private readonly resourcesMapper: ResourcesMapper;
-    private readonly decorator: ResourcesDecorator;
-    private readonly downloadOrchestrator: DownloadOrchestrator;
+    private readonly progressMenu: ProgressMenuEntry | null;
+    private readonly resourcesMapper: ResourcesMapper | null;
+    private readonly decorator: ResourcesDecorator | null;
+    private readonly downloadOrchestrator: DownloadOrchestrator | null;
     private readonly resources: Resource[] = [];
+    private readonly mappingEnabled: boolean;
+
+    private readonly enableResourcesMappingConfiguration = new BooleanConfiguration(
+        this.name,
+        "enableResourcesMapping",
+        true,
+        {
+            label: "Enable resources mapping",
+            description:
+                "When off, mapping and downloads stay inactive until the page is refreshed.",
+        },
+    );
 
     private readonly parallelDownloadsConfiguration = new NumberConfiguration(
         this.name,
@@ -71,6 +84,16 @@ export class ResourcesDownloader extends Module<ResourcesDownloaderOpts> {
 
     constructor(name: string, opts: ResourcesDownloaderOpts) {
         super(name, opts);
+
+        this.mappingEnabled = this.enableResourcesMappingConfiguration.value === true;
+
+        if (!this.mappingEnabled) {
+            this.progressMenu = null;
+            this.resourcesMapper = null;
+            this.decorator = null;
+            this.downloadOrchestrator = null;
+            return;
+        }
 
         this.progressMenu = new ProgressMenuEntry(iconSvgRaw, LABEL, {
             additionalButtons: [
@@ -113,7 +136,12 @@ export class ResourcesDownloader extends Module<ResourcesDownloaderOpts> {
     }
 
     override get configurations(): Configuration[] {
+        if (!this.mappingEnabled) {
+            return [this.enableResourcesMappingConfiguration];
+        }
+
         return [
+            this.enableResourcesMappingConfiguration,
             this.parallelDownloadsConfiguration,
             this.downloadRetriesConfiguration,
             this.downloadRetryIntervalMsConfiguration,
@@ -121,10 +149,14 @@ export class ResourcesDownloader extends Module<ResourcesDownloaderOpts> {
     }
 
     override get notifications(): NotificationEntry[] {
-        return [this.progressMenu];
+        return this.progressMenu != null ? [this.progressMenu] : [];
     }
 
     override async onEntityViewed(data: EntityViewedEventPayload): Promise<void> {
+        if (this.resourcesMapper == null) {
+            return;
+        }
+
         const entry = {
             ...data.entity,
             element: data.entity.element ?? document.body,
@@ -134,11 +166,15 @@ export class ResourcesDownloader extends Module<ResourcesDownloaderOpts> {
     }
 
     override async onEntitiesInjected(data: EntitiesInjectedEventPayload): Promise<void> {
+        if (this.resourcesMapper == null) {
+            return;
+        }
+
         this.resourcesMapper.scanListing(data.entities);
     }
 
     protected override async onBeforeUnload(data: BeforeUnloadEventPayload): Promise<void> {
-        if (this.downloadOrchestrator.hasInProgressDownloads()) {
+        if (this.downloadOrchestrator?.hasInProgressDownloads() === true) {
             data.notifyPendingOperations();
         }
     }
@@ -146,7 +182,7 @@ export class ResourcesDownloader extends Module<ResourcesDownloaderOpts> {
     private registerResources(resources: Resource[]): void {
         this.log.debug("Registering", resources.length, "resources");
 
-        if (resources.length === 0) {
+        if (resources.length === 0 || this.decorator == null) {
             return;
         }
 
@@ -157,7 +193,7 @@ export class ResourcesDownloader extends Module<ResourcesDownloaderOpts> {
     private readonly onDownloadClick = async (resource: Resource): Promise<void> => {
         this.log.debug("Handling download click for resource", resource);
 
-        if (resource == null) {
+        if (resource == null || this.downloadOrchestrator == null) {
             return;
         }
 
@@ -166,17 +202,17 @@ export class ResourcesDownloader extends Module<ResourcesDownloaderOpts> {
 
     private readonly onDownloadAllClick = async (): Promise<void> => {
         this.log.debug("Handling menu download all click");
-        await this.downloadOrchestrator.downloadAll();
+        await this.downloadOrchestrator?.downloadAll();
     };
 
     private readonly onRetryAllClick = async (): Promise<void> => {
         this.log.debug("Handling menu retry all click");
-        await this.downloadOrchestrator.retryAll();
+        await this.downloadOrchestrator?.retryAll();
     };
 
     private readonly onCancelAllClick = (): void => {
         this.log.debug("Handling menu cancel all click");
-        this.downloadOrchestrator.cancelAll();
+        this.downloadOrchestrator?.cancelAll();
     };
 
     private static consolidateMappings(
