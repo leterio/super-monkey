@@ -29,7 +29,7 @@ export type ResourcesDownloaderOpts = ModuleOpts & {
 /**
  * Normalizes ResourcesDownloader opts before load.
  * Missing or unusable mappings omit `value`. Individual bad mappings or modes are dropped as repairs.
- * Consolidated builtins are overridden by kept user keys.
+ * Returned `mappings` are user keys only; builtins merge at runtime in {@link ResourcesDownloader}.
  */
 export function normalizeResourcesDownloaderOpts(raw: unknown): Normalized<ResourcesDownloaderOpts> {
     const walk = new OptsNormalization();
@@ -51,6 +51,7 @@ export function normalizeResourcesDownloaderOpts(raw: unknown): Normalized<Resou
     }
 
     const keptUserMappings = pruneUserMappings(userMappings, downloadModeNames, walk);
+    stripRedundantBuiltinUserMappings(keptUserMappings, walk);
     if (Object.keys(keptUserMappings).length === 0) {
         walk.reject("mappings", "mappings is required");
         return walk.finish<ResourcesDownloaderOpts>(undefined);
@@ -66,12 +67,12 @@ export function normalizeResourcesDownloaderOpts(raw: unknown): Normalized<Resou
         return walk.finish<ResourcesDownloaderOpts>(undefined);
     }
 
-    const mappings: Record<string, ResourcesMapping> = {
+    const consolidated: Record<string, ResourcesMapping> = {
         ...BUILTIN_RESOURCES_MAPPINGS,
         ...keptUserMappings,
     };
 
-    const entryPoints = resolveEntryPoints(Object.keys(keptUserMappings), mappings);
+    const entryPoints = resolveEntryPoints(Object.keys(keptUserMappings), consolidated);
     if (entryPoints.length === 0) {
         walk.reject(
             "mappings",
@@ -81,10 +82,46 @@ export function normalizeResourcesDownloaderOpts(raw: unknown): Normalized<Resou
     }
 
     return walk.finish({
-        mappings,
+        mappings: keptUserMappings,
         entryPoints,
         ...(downloadModes != null && downloadModes.length > 0 ? { downloadModes } : {}),
     });
+}
+
+/**
+ * Drops user keys that are identical to a built-in mapping.
+ * Heals opts that previously persisted consolidated builtins from save-time normalization.
+ */
+function stripRedundantBuiltinUserMappings(
+    userMappings: Record<string, ResourcesMapping>,
+    walk: OptsNormalization,
+): void {
+    for (const key of Object.keys(BUILTIN_RESOURCES_MAPPINGS)) {
+        const userMapping = userMappings[key];
+        if (userMapping == null) {
+            continue;
+        }
+
+        const probe = new OptsNormalization();
+        const normalizedBuiltin = normalizeMapping(
+            BUILTIN_RESOURCES_MAPPINGS[key],
+            `mappings.${key}`,
+            probe,
+        );
+        if (normalizedBuiltin == null) {
+            continue;
+        }
+
+        if (JSON.stringify(userMapping) !== JSON.stringify(normalizedBuiltin)) {
+            continue;
+        }
+
+        delete userMappings[key];
+        walk.repair(
+            `mappings.${key}`,
+            `redundant built-in mapping "${key}" removed; reference it as a collection child instead`,
+        );
+    }
 }
 
 function normalizeUserMappings(

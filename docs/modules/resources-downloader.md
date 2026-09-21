@@ -152,7 +152,7 @@ Without those events (or when they never fire), the module can still load but st
 
 `ModuleLoader` runs `normalizeResourcesDownloaderOpts` before construction. When no usable **user** entry-point mapping remains, opts **reject** (no instance). Individual bad mappings or download modes are dropped (**repair**); the module loads with the cleaned set.
 
-Normalized `mappings` merge **built-ins** with your keys (your key wins on collision). Only **your** mapping keys that are **not** referenced as another mapping’s `children` become **entry points**. Entry-point scan order runs **collections before leaves**, so nested resources are claimed by collections first. Built-in keys (`images`, `videos`, `audios`) may be used as **children**; they are not entry points by themselves.
+Normalized `mappings` keep **only user keys** (built-ins are not stored). At runtime the module consolidates built-ins under `images` / `videos` / `audios` (your key wins on collision). Only **your** mapping keys that are **not** referenced as another mapping’s `children` become **entry points**. Entry-point scan order runs **collections before leaves**, so nested resources are claimed by collections first. Built-in keys may be used as **children**; they are not entry points by themselves. A user key that is identical to a built-in is dropped as a repair (use a different key for a top-level scan with the same shape).
 
 ## Pick a mapping shape
 
@@ -244,7 +244,7 @@ Named pipelines in `downloadModes`. Leaf `downloadMode` selects which pipeline r
 
 ## Built-in mappings
 
-Always merged under these keys unless you override the same key:
+Always available at runtime under these keys unless you override the same key with a **different** mapping:
 
 | Key      | Role                                                                                                                   | Default decoration                                 |
 | -------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
@@ -252,7 +252,7 @@ Always merged under these keys unless you override the same key:
 | `videos` | `video > source[src]` (typed sources first)                                                                            | `closestSelectors: ["video"]` + `overridePosition` |
 | `audios` | `audio > source[src]` (typed sources first)                                                                            | `closestSelectors: ["audio"]` + `overridePosition` |
 
-A user mapping with the same key **replaces** the built-in. Built-ins are not entry points; reference them from a collection’s `children`, or copy their shape into your own entry-point leaf if you need a top-level scan.
+A user mapping with the same key and a **different** shape **replaces** the built-in. A user mapping identical to the built-in is dropped (repair). Built-ins are not entry points; reference them from a collection’s `children`, or copy their shape into your own entry-point leaf (different key) if you need a top-level scan.
 
 ## How it reacts to Content Manager
 
@@ -318,7 +318,7 @@ Notification Bar: a `ProgressMenuEntry` exposes download progress plus **Downloa
 | Outcome    | When                                                                                                                                                                                                                                                                              |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Reject** | Raw opts are not an object; `mappings` missing/empty; no usable user mappings remain; no scannable **user entry points** (builtins alone are not enough).                                                                                                                         |
-| **Repair** | Bad mappings or download modes dropped; empty selectors / urlSources / children fixed or dropped; unknown `downloadMode` drops the leaf; cycles and dangling collection children removed; mid-pipeline `download` steps drop the mode; missing final `download` step is appended. |
+| **Repair** | Bad mappings or download modes dropped; empty selectors / urlSources / children fixed or dropped; unknown `downloadMode` drops the leaf; cycles and dangling collection children removed; user keys identical to a built-in mapping removed; mid-pipeline `download` steps drop the mode; missing final `download` step is appended. |
 
 The loader constructs `ResourcesDownloader` with the cleaned `value`. Repair findings log as WARN (`Module options were repaired:`). A missing `value` logs FATAL for that instance.
 
