@@ -19,6 +19,8 @@ export type ResourceLeaf = BaseResource & {
     progress?: ProgressItemHandle;
     /** Progress rows for ancestor collections that include this leaf. */
     branchProgress?: ProgressItemHandle[];
+    /** Download attempt counter for auto-retry; set on admit. */
+    attempt?: number;
 };
 
 /** Container resource whose children come from nested mapping keys. */

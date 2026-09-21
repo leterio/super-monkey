@@ -285,29 +285,35 @@ Content Manager event names and payloads: [Content Manager - Events](./content-m
 
 A download starts from a decoration button, **Download All**, or **Retry**.
 
-For each **leaf**, the first non-empty `urlSources` value on the live element is the download URL and the progress-menu row label. An empty result logs an error, sets the leaf (and its button) to error, and skips the progress menu.
+For each **leaf**, admission resolves the first non-empty `urlSources` value on the live element as the download URL and progress-menu row label, creates or updates that menu row, sets the leaf to `progress` (progress `0`), sets `attempt` to `1` on a fresh run, then enqueues the leaf for network execution. An empty URL result logs an error, sets the leaf (and its button) to error, and does not enqueue or auto-retry. The session queue only orders network execution under `parallelDownloads`; admission does not wait for an execution slot.
 
-A **collection** starts every descendant leaf that is not already in progress, in parallel, after dropping leaves whose resolved URL already appeared earlier in that batch (those leaves become `skipped`).
+A **collection** admits every descendant leaf that is not already in progress, after dropping leaves whose resolved URL already appeared earlier in that batch (those leaves become `skipped`). Every admitted leaf appears in the progress menu as `progress` immediately, including leaves still waiting for execution capacity.
 
 Custom modes: when a document step resolves **multiple** URLs, every branch continues in parallel through the remaining steps; each final URL becomes a separate saved file. Progress rows track branches (first URL on the initial row; additional URLs get their own rows). Any branch failure marks the leaf as error; retry restarts the full pipeline.
 
 Saved file names come from the last path segment of the final URL, with a `"download"` fallback.
 
-### Progress UI and cancel
+### Progress UI, cancel, and retry
 
-While a leaf is in progress, hovering a progress-menu row shows **Cancel**. On error, **Cancel** and **Retry** appear. Cancel (or **Cancel All**) aborts in-flight document fetches and `GM_download` calls, skips remaining steps, removes menu rows for the leaf, and sets `cancelled`.
+While a leaf is in progress (admitted and waiting in the execution queue, or actively downloading), hovering a progress-menu row shows **Cancel**. On error, **Cancel** and **Retry** appear. Cancel on a waiting queued row removes that leaf from the session execution queue without starting network work. Cancel also clears any pending auto-retry timer. Cancel (or **Cancel All**) on an in-flight leaf aborts document fetches and `GM_download` calls, skips remaining steps, removes menu rows for the leaf, and sets `cancelled`.
 
-Status on the **resource element** uses `data-sm-rd-state` (`pending`, `progress`, `done`, `error`, `skipped`, `cancelled`), including while `pending`. Status on the **download button** uses `data-state` (`progress`, `done`, `error`, `skipped`, `cancelled`); that attribute is omitted while `pending`. Parent collections aggregate child status (progress → error → pending → done; `skipped` counts like done; `cancelled` like pending). The menu lists only leaves that have a resolved URL and an active download. Collections do not appear as menu rows.
+After a non-abort network/pipeline failure, if the leaf’s `attempt` is less than or equal to `downloadRetries`, the leaf stays `error` and an auto-retry is scheduled after `downloadRetryIntervalMs`. When the timer fires, `attempt` increments by one, the leaf is re-admitted (menu + `progress`), and it is pushed to the **end** of the session execution queue. The delay does not occupy an execution-queue slot or a network permit. With `downloadRetries` at `0`, the first failure never auto-requeues. Unresolved leaf URLs never auto-retry.
 
-The [progress menu](./notification-bar.md) also offers **Download All**, **Retry All**, and **Cancel All**. Download All starts every leaf that is pending, cancelled, or failed, after URL dedupe in walk order. Leaves already `skipped` are not restarted by Download All; a manual click on a skipped leaf still runs. Retry All restarts failed leaves. Cancel All aborts every in-progress leaf.
+Manual **Retry** / **Retry All** clear any queue membership and pending auto-retry timer, reset `attempt` to `1`, and re-admit (they ignore the `downloadRetries` ceiling for that fresh run).
+
+Status on the **resource element** uses `data-sm-rd-state` (`pending`, `progress`, `done`, `error`, `skipped`, `cancelled`), including while `pending`. Status on the **download button** uses `data-state` (`progress`, `done`, `error`, `skipped`, `cancelled`); that attribute is omitted while `pending`. Parent collections aggregate child status (progress → error → pending → done; `skipped` counts like done; `cancelled` like pending). The menu lists every admitted leaf with a resolved URL (including those waiting for execution). Collections do not appear as menu rows.
+
+The [progress menu](./notification-bar.md) also offers **Download All**, **Retry All**, and **Cancel All**. Download All admits every leaf that is pending, cancelled, or failed, after URL dedupe in walk order, and skips leaves already in the execution queue, executing, or waiting on an auto-retry timer. Leaves already `skipped` are not restarted by Download All; a manual click on a skipped leaf still runs. Retry All re-admits failed leaves with `attempt` reset to `1`. Cancel All cancels every leaf that is waiting in the execution queue, waiting on an auto-retry timer, or actively downloading.
 
 ## Runtime configurations
 
 Shown in the Configuration Menu (end-user preference):
 
-| Control            | Key                 | Default | Role                                                                                                                                       |
-| ------------------ | ------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Parallel downloads | `parallelDownloads` | `10`    | Maximum concurrent downloads (clamped to 1–50). Applies to Download All, Retry All, collection starts, and parallel branches within a leaf |
+| Control                        | Key                        | Default | Role                                                                                                                                                                                                 |
+| ------------------------------ | -------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Parallel downloads             | `parallelDownloads`        | `10`    | Session-wide maximum concurrent network operations (document fetches and final downloads), clamped to 1–50. Shared across all starts, Download All, Retry All, collection runs, and branch fan-out within a leaf |
+| Download retries               | `downloadRetries`          | `0`     | Automatic retries after a failed download (`0` disables auto-retry; max `10`). After failure, if `attempt <= downloadRetries`, the leaf is re-queued after the retry interval                                      |
+| Download retry interval (ms)   | `downloadRetryIntervalMs`  | `1000`  | Fixed delay before an automatic retry is queued, clamped to 1000–30000 ms                                                                                                                            |
 
 Notification Bar: a `ProgressMenuEntry` exposes download progress plus **Download All** / **Retry All** / **Cancel All**.
 

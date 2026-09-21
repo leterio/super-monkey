@@ -45,6 +45,30 @@ export class ResourcesDownloader extends Module<ResourcesDownloaderOpts> {
         },
     );
 
+    private readonly downloadRetriesConfiguration = new NumberConfiguration(
+        this.name,
+        "downloadRetries",
+        0,
+        {
+            label: "Download retries",
+            description: "Automatic retries after a failed download (0 disables auto-retry).",
+            min: 0,
+            max: 10,
+        },
+    );
+
+    private readonly downloadRetryIntervalMsConfiguration = new NumberConfiguration(
+        this.name,
+        "downloadRetryIntervalMs",
+        1000,
+        {
+            label: "Download retry interval (ms)",
+            description: "Delay before an automatic retry is queued.",
+            min: 1000,
+            max: 30000,
+        },
+    );
+
     constructor(name: string, opts: ResourcesDownloaderOpts) {
         super(name, opts);
 
@@ -73,6 +97,8 @@ export class ResourcesDownloader extends Module<ResourcesDownloaderOpts> {
             mappings,
             opts.downloadModes ?? [],
             this.parallelDownloadsConfiguration,
+            this.downloadRetriesConfiguration,
+            this.downloadRetryIntervalMsConfiguration,
         );
 
         injectStyle(`${TOKENS_CSS}\n${decorationCss}`);
@@ -87,7 +113,11 @@ export class ResourcesDownloader extends Module<ResourcesDownloaderOpts> {
     }
 
     override get configurations(): Configuration[] {
-        return [this.parallelDownloadsConfiguration];
+        return [
+            this.parallelDownloadsConfiguration,
+            this.downloadRetriesConfiguration,
+            this.downloadRetryIntervalMsConfiguration,
+        ];
     }
 
     override get notifications(): NotificationEntry[] {
