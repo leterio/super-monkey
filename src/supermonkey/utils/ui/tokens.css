@@ -1,4 +1,5 @@
 :host,
+:root,
 html.sm-ui-root {
     --sm-color-panel-bg: #555555;
     --sm-color-panel-fg: #eee;
