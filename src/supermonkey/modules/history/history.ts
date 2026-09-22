@@ -82,7 +82,8 @@ export class History extends Module<HistoryOpts> {
     private readonly newContentSelectors: readonly string[];
     private readonly viewedStyles: string;
     private readonly listedStyles: string;
-    private readonly entriesDecoratorConfiguration: BooleanStyleConfiguration | null;
+    private readonly decorateViewedContentConfiguration: BooleanStyleConfiguration | null;
+    private readonly decorateListedContentConfiguration: BooleanStyleConfiguration | null;
     private readonly showEntriesWithNewContentConfiguration: BooleanConfiguration | null;
     private readonly hideViewedContentConfiguration: BooleanStyleConfiguration;
     private readonly hideListedContentConfiguration: BooleanStyleConfiguration;
@@ -93,11 +94,18 @@ export class History extends Module<HistoryOpts> {
         this.viewedStyles = opts.viewedStyles ?? "";
         this.listedStyles = opts.listedStyles ?? "";
         this.newContentSelectors = opts.newContentSelectors ?? [];
-        this.entriesDecoratorConfiguration = this.viewedStyles.length > 0 || this.listedStyles.length > 0
-            ? new BooleanStyleConfiguration(this.name, "entriesDecorator", true, {
-                label: "Decorate Entries",
-                description: "Decorate entries to indicate their history state.",
-                css: (enabled) => this.buildDecorationCss(enabled),
+        this.decorateViewedContentConfiguration = this.viewedStyles.length > 0
+            ? new BooleanStyleConfiguration(this.name, "decorateViewedContent", true, {
+                label: "Decorate Viewed Content",
+                description: "Decorate viewed entries with the configured viewed styles.",
+                css: (enabled) => this.buildViewedDecorationCss(enabled),
+            })
+            : null;
+        this.decorateListedContentConfiguration = this.listedStyles.length > 0
+            ? new BooleanStyleConfiguration(this.name, "decorateListedContent", true, {
+                label: "Decorate Listed Content",
+                description: "Decorate listed entries with the configured listed styles.",
+                css: (enabled) => this.buildListedDecorationCss(enabled),
             })
             : null;
 
@@ -167,7 +175,12 @@ export class History extends Module<HistoryOpts> {
 
     override get configurations(): Configuration[] {
         return [
-            ...(this.entriesDecoratorConfiguration != null ? [this.entriesDecoratorConfiguration] : []),
+            ...(this.decorateViewedContentConfiguration != null
+                ? [this.decorateViewedContentConfiguration]
+                : []),
+            ...(this.decorateListedContentConfiguration != null
+                ? [this.decorateListedContentConfiguration]
+                : []),
             this.hideViewedContentConfiguration,
             this.hideListedContentConfiguration,
             ...(this.showEntriesWithNewContentConfiguration != null
@@ -298,25 +311,26 @@ export class History extends Module<HistoryOpts> {
         return this.showEntriesWithNewContentConfiguration?.value === true;
     }
 
-    private buildDecorationCss(enabled: boolean): string | null {
-        if (enabled !== true) {
+    private buildViewedDecorationCss(enabled: boolean): string | null {
+        if (enabled !== true || this.viewedStyles.length === 0) {
             return null;
         }
 
-        const parts: string[] = [];
-        if (this.viewedStyles.length > 0) {
-            parts.push(expandCssAmpersandPlaceholder(
-                this.viewedStyles,
-                `[${HISTORY_METADATA_KEY}="${HistoryState.VIEWED}"]`,
-            ));
+        return expandCssAmpersandPlaceholder(
+            this.viewedStyles,
+            `[${HISTORY_METADATA_KEY}="${HistoryState.VIEWED}"]`,
+        );
+    }
+
+    private buildListedDecorationCss(enabled: boolean): string | null {
+        if (enabled !== true || this.listedStyles.length === 0) {
+            return null;
         }
-        if (this.listedStyles.length > 0) {
-            parts.push(expandCssAmpersandPlaceholder(
-                this.listedStyles,
-                `[${HISTORY_METADATA_KEY}="${HistoryState.LISTED}"]`,
-            ));
-        }
-        return parts.length > 0 ? parts.join("\n") : null;
+
+        return expandCssAmpersandPlaceholder(
+            this.listedStyles,
+            `[${HISTORY_METADATA_KEY}="${HistoryState.LISTED}"]`,
+        );
     }
 
     private applyHasNewContentMetadata(element: HTMLElement): boolean {
