@@ -2,11 +2,10 @@ import { GM_openInTab, GM_registerMenuCommand } from "$";
 import { DOCS_INTEGRATIONS_MENU_URL } from "../../constants";
 import { SuperMonkey } from "../../supermonkey";
 import { createElement, injectElement } from "../../utils/dom/elements";
-import { attachShadowRoot } from "../../utils/dom/shadow";
 import { Logger, LogLevel } from "../../utils/logger";
 import {
-    CSS_RESET,
-    GENERAL_CSS,
+    createIsolatedFrame,
+    type IsolatedFrame,
     UICSSMap,
     injectBackdrop,
     injectInputRow,
@@ -59,7 +58,7 @@ const LOG_LEVEL_HELP =
  * Registers a Tampermonkey command.
  */
 export class IntegrationsMenu {
-    private static menuRoot?: HTMLElement;
+    private static frame?: IsolatedFrame;
 
     static registerMenuCommands(): void {
         GM_registerMenuCommand("Open Integrations Menu", () => {
@@ -69,12 +68,13 @@ export class IntegrationsMenu {
 
     /** Shows the integrations list overlay. */
     static open(): void {
-        if (document.body == null) {
+        if (document.body == null && document.documentElement == null) {
             return;
         }
 
-        if (this.menuRoot != null) {
-            document.body.appendChild(this.menuRoot);
+        if (this.frame != null) {
+            const parent = document.body ?? document.documentElement;
+            parent?.appendChild(this.frame.iframe);
             return;
         }
 
@@ -82,18 +82,15 @@ export class IntegrationsMenu {
     }
 
     private static close(): void {
-        this.menuRoot?.remove();
-        this.menuRoot = undefined;
+        this.frame?.destroy();
+        this.frame = undefined;
     }
 
     private static buildMenu(): void {
-        this.menuRoot = injectElement(document.body, "div");
-        const shadow = attachShadowRoot(this.menuRoot, {
-            mode: "closed",
-            css: [CSS_RESET, GENERAL_CSS, css],
-        });
-        injectBackdrop(shadow, () => this.close());
-        const panel = injectPanel(shadow, {
+        this.frame = createIsolatedFrame(css);
+
+        injectBackdrop(this.frame.body, () => this.close());
+        const panel = injectPanel(this.frame.body, {
             title: "Integrations",
             classes: [CSSMap.BASE_CLASS],
             button: {

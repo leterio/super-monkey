@@ -142,7 +142,7 @@ On `INTEGRATION_LOADED`, the module listens for `keydown` on `document`. Enabled
 
 | Step           | Behavior                                                                                                      |
 | -------------- | ------------------------------------------------------------------------------------------------------------- |
-| Focus guard    | Events are ignored when focus is in `input`, `textarea`, `select`, or `contenteditable`                       |
+| Focus guard    | Events are ignored when `composedPath()` includes `input`, `textarea`, `select`, or `contenteditable` (including Shadow DOM) |
 | Modifier guard | Events are ignored when `Ctrl`, `Alt`, or `Meta` is held                                                      |
 | Key mapping    | Only the enabled pairs map to prev/next ([Runtime configurations](#runtime-configurations))                   |
 | Intercept      | When a mapped pair matches, the module calls `preventDefault` and `stopPropagation`                           |

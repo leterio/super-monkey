@@ -1,9 +1,49 @@
-:host {
+/* Host-page chrome for the isolated iframe element */
+.sm-isolated-frame {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    margin: 0;
+    padding: 0;
+    z-index: 2147483647;
+    background: transparent;
+    color-scheme: normal;
+}
+
+/* Shadow host and iframe document root */
+:host,
+html.sm-ui-root {
     opacity: 1;
     font-size: initial !important;
     font-family: system-ui, sans-serif !important;
     text-align: initial !important;
     line-height: initial !important;
+}
+
+/* Full-viewport overlay shell (iframe document or marked shadow host) */
+:host(.sm-ui-root),
+html.sm-ui-root {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 1 !important;
+    z-index: 2147483647;
+}
+
+html.sm-ui-root,
+html.sm-ui-root body {
+    min-height: 100%;
+}
+
+html.sm-ui-root body {
+    position: relative;
+    margin: 0;
+    width: 100%;
+    height: 100%;
 }
 
 .sm-backdrop {
@@ -51,7 +91,7 @@ section+section {
 }
 
 .sm-panel button.button,
-.sm-panel .control > button {
+.sm-panel .control>button {
     min-width: 8em;
     padding: 0.25em 1em;
 }
@@ -128,6 +168,7 @@ section+section {
     flex: 1 1 100%;
     font-size: 0.9em;
     color: var(--sm-color-muted);
+    padding-bottom: 0.125em;
 }
 
 .heading .close {
@@ -208,7 +249,7 @@ section+section {
 input:not([type="checkbox"]),
 select,
 textarea,
-.control > button {
+.control>button {
     width: 100%;
     box-sizing: border-box;
 }
@@ -240,7 +281,7 @@ button.button {
     cursor: pointer;
 }
 
-.control > button {
+.control>button {
     width: 100%;
     cursor: pointer;
 }

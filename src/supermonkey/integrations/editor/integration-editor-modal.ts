@@ -1,15 +1,14 @@
 import { GM_openInTab } from "$";
 import { DOCS_INTEGRATION_EDITOR_URL } from "../../constants";
 import { injectElement } from "../../utils/dom/elements";
-import { attachShadowRoot } from "../../utils/dom/shadow";
 import { Logger } from "../../utils/logger";
 import { normalizeId } from "../../utils/string";
 import {
-    CSS_RESET,
-    GENERAL_CSS,
+    createIsolatedFrame,
     injectBackdrop,
     injectPanel,
     injectSection,
+    type IsolatedFrame,
     UICSSMap,
 } from "../../utils/ui/ui-builder";
 import { IntegrationValidationIssue, validateIntegration } from "../integration-validation";
@@ -59,7 +58,7 @@ export class IntegrationEditorModal {
     private static readonly log = new Logger("IntegrationEditorModal");
     private static openInstance: IntegrationEditorModal | null = null;
 
-    private host: HTMLElement | null = null;
+    private frame: IsolatedFrame | null = null;
     private bodyEl: HTMLElement | null = null;
     private errorsEl: HTMLElement | null = null;
     private ui: EditorUiHelpers | null = null;
@@ -107,13 +106,10 @@ export class IntegrationEditorModal {
     }
 
     private mount(): void {
-        this.host = injectElement(document.body, "div");
-        const shadow = attachShadowRoot(this.host, {
-            mode: "closed",
-            css: [CSS_RESET, GENERAL_CSS, css],
-        });
-        injectBackdrop(shadow, () => this.close());
-        const panel = injectPanel(shadow, {
+        this.frame = createIsolatedFrame(css);
+
+        injectBackdrop(this.frame.body, () => this.close());
+        const panel = injectPanel(this.frame.body, {
             title: this.mode === "create" ? "Create integration" : `Editing ${this.draft.name}`,
             classes: [CSSMap.BASE_CLASS],
             button: {
@@ -210,8 +206,8 @@ export class IntegrationEditorModal {
     }
 
     private close(): void {
-        this.host?.remove();
-        this.host = null;
+        this.frame?.destroy();
+        this.frame = null;
         this.bodyEl = null;
         this.errorsEl = null;
         this.ui = null;

@@ -1,5 +1,6 @@
 import { injectElement } from "../dom/elements";
 import { QueryableBaseElement } from "../dom/query";
+import { injectStyle } from "../dom/style";
 
 import cssResetRaw from "./css-reset.css?raw";
 import generalBodyCss from "./general.css?raw";
@@ -18,6 +19,8 @@ export const TOKENS_CSS = tokensCssRaw;
 export enum UICSSMap {
     BACKDROP_CLASS = "sm-backdrop",
     PANEL_ROOT_CLASS = "sm-panel",
+    ISOLATED_FRAME_CLASS = "sm-isolated-frame",
+    UI_ROOT_CLASS = "sm-ui-root",
 
     HEADING_CLASS = "heading",
     HEADING_ACTIONS_CLASS = "heading-actions",
@@ -233,4 +236,101 @@ export function injectInputRow(
     }
 
     return input;
+}
+
+/**
+ * Full-viewport iframe that owns its own browsing context.
+ * Host-page keyboard shortcuts (for example Reddit j/k) do not receive keys typed inside the frame.
+ */
+export type IsolatedFrame = {
+    /** Iframe element appended to the host page. */
+    readonly iframe: HTMLIFrameElement;
+    /** Document inside the iframe. */
+    readonly document: Document;
+    /** `document.body` inside the iframe — mount UI here. */
+    readonly body: HTMLElement;
+    /** Removes the iframe from the host page. */
+    readonly destroy: () => void;
+};
+
+let isolatedFrameHostChromeInjected = false;
+
+function ensureIsolatedFrameHostChrome(): void {
+    if (isolatedFrameHostChromeInjected) {
+        return;
+    }
+    isolatedFrameHostChromeInjected = true;
+    injectStyle(GENERAL_CSS);
+}
+
+/**
+ * Appends a `<style>` element to an iframe (or other) document's `head`.
+ * @throws When the document has no `head`
+ */
+export function injectStyleIntoDocument(doc: Document, css: string): HTMLStyleElement {
+    const head = doc.head ?? doc.getElementsByTagName("head")[0];
+    if (head == null) {
+        throw new Error("Document has no head");
+    }
+
+    const style = doc.createElement("style");
+    style.textContent = css;
+    head.appendChild(style);
+    return style;
+}
+
+/**
+ * Creates a transparent full-viewport `about:blank` iframe and returns its document shell.
+ * Injects {@link CSS_RESET} and {@link GENERAL_CSS} into the frame; pass extra sheets via `css`.
+ * Host chrome uses `.sm-isolated-frame`; the document root uses `.sm-ui-root` from `general.css`.
+ * @throws When the iframe document cannot be initialized
+ */
+export function createIsolatedFrame(css?: string | readonly string[]): IsolatedFrame {
+    const parent = document.body ?? document.documentElement;
+    if (parent == null) {
+        throw new Error("Cannot create isolated frame before documentElement exists");
+    }
+
+    ensureIsolatedFrameHostChrome();
+
+    const iframe = document.createElement("iframe");
+    iframe.className = UICSSMap.ISOLATED_FRAME_CLASS;
+    iframe.setAttribute("data-sm-isolated-frame", "");
+    iframe.title = "SuperMonkey";
+    parent.appendChild(iframe);
+
+    const doc = iframe.contentDocument;
+    if (doc == null) {
+        iframe.remove();
+        throw new Error("Isolated frame contentDocument is null");
+    }
+
+    doc.open();
+    doc.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body></body></html>");
+    doc.close();
+
+    const html = doc.documentElement;
+    const body = doc.body;
+    if (html == null || body == null) {
+        iframe.remove();
+        throw new Error("Isolated frame document shell is incomplete");
+    }
+
+    html.classList.add(UICSSMap.UI_ROOT_CLASS);
+
+    injectStyleIntoDocument(doc, CSS_RESET);
+    injectStyleIntoDocument(doc, GENERAL_CSS);
+    const sheets = css == null ? [] : typeof css === "string" ? [css] : css;
+    for (const sheet of sheets) {
+        injectStyleIntoDocument(doc, sheet);
+    }
+
+    return {
+        iframe,
+        document: doc,
+        body,
+        destroy: () => {
+            iframe.remove();
+        },
+    };
 }

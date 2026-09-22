@@ -26,7 +26,7 @@ export default defineConfig(({ command }) => ({
         ],
         connect: ['*'],
         noframes: true,
-        'run-at': 'document-body',
+        'run-at': 'document-start',
       },
     })
   ],
