@@ -283,7 +283,9 @@ export function injectStyleIntoDocument(doc: Document, css: string): HTMLStyleEl
  * Creates a transparent full-viewport `about:blank` iframe and returns its document shell.
  * Injects {@link CSS_RESET} and {@link GENERAL_CSS} into the frame; pass extra sheets via `css`.
  * Host chrome uses `.sm-isolated-frame`; the document root uses `.sm-ui-root` from `general.css`.
+ * The frame `head` includes `<meta name="darkreader-lock">` so Dark Reader skips the document.
  * @throws When the iframe document cannot be initialized
+ * @see https://github.com/darkreader/darkreader/blob/main/CONTRIBUTING.md#disabling-dark-reader-statically
  */
 export function createIsolatedFrame(css?: string | readonly string[]): IsolatedFrame {
     const parent = document.body ?? document.documentElement;
@@ -306,7 +308,12 @@ export function createIsolatedFrame(css?: string | readonly string[]): IsolatedF
     }
 
     doc.open();
-    doc.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body></body></html>");
+    doc.write(
+        "<!DOCTYPE html><html><head>"
+        + "<meta charset=\"utf-8\">"
+        + "<meta name=\"darkreader-lock\">"
+        + "</head><body></body></html>",
+    );
     doc.close();
 
     const html = doc.documentElement;
