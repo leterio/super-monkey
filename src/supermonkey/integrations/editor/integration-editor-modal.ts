@@ -5,7 +5,6 @@ import { Logger } from "../../utils/logger";
 import { normalizeId } from "../../utils/string";
 import {
     createIsolatedFrame,
-    injectBackdrop,
     injectPanel,
     injectSection,
     type IsolatedFrame,
@@ -106,9 +105,11 @@ export class IntegrationEditorModal {
     }
 
     private mount(): void {
-        this.frame = createIsolatedFrame(css);
+        this.frame = createIsolatedFrame(css, {
+            frameClass: "sm-ite",
+            onBackdropClick: () => this.close(),
+        });
 
-        injectBackdrop(this.frame.body, () => this.close());
         const panel = injectPanel(this.frame.body, {
             title: this.mode === "create" ? "Create integration" : `Editing ${this.draft.name}`,
             classes: [CSSMap.BASE_CLASS],

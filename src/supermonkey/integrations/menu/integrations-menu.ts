@@ -7,7 +7,6 @@ import {
     createIsolatedFrame,
     type IsolatedFrame,
     UICSSMap,
-    injectBackdrop,
     injectInputRow,
     injectPanel,
     injectSection,
@@ -74,7 +73,7 @@ export class IntegrationsMenu {
 
         if (this.frame != null) {
             const parent = document.body ?? document.documentElement;
-            parent?.appendChild(this.frame.iframe);
+            parent?.appendChild(this.frame.host);
             return;
         }
 
@@ -87,9 +86,11 @@ export class IntegrationsMenu {
     }
 
     private static buildMenu(): void {
-        this.frame = createIsolatedFrame(css);
+        this.frame = createIsolatedFrame(css, {
+            frameClass: "sm-int",
+            onBackdropClick: () => this.close(),
+        });
 
-        injectBackdrop(this.frame.body, () => this.close());
         const panel = injectPanel(this.frame.body, {
             title: "Integrations",
             classes: [CSSMap.BASE_CLASS],

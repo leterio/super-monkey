@@ -19,6 +19,7 @@ export const TOKENS_CSS = tokensCssRaw;
 export enum UICSSMap {
     BACKDROP_CLASS = "sm-backdrop",
     PANEL_ROOT_CLASS = "sm-panel",
+    OVERLAY_HOST_CLASS = "sm-overlay-host",
     ISOLATED_FRAME_CLASS = "sm-isolated-frame",
     UI_ROOT_CLASS = "sm-ui-root",
 
@@ -239,18 +240,30 @@ export function injectInputRow(
 }
 
 /**
- * Full-viewport iframe that owns its own browsing context.
+ * Host overlay with a page-level backdrop and a panel-sized iframe browsing context.
  * Host-page keyboard shortcuts (for example Reddit j/k) do not receive keys typed inside the frame.
  */
 export type IsolatedFrame = {
-    /** Iframe element appended to the host page. */
+    /** Full-viewport overlay root on the host page (backdrop + iframe). */
+    readonly host: HTMLElement;
+    /** Dimmed backdrop sibling of the iframe (outside the frame document). */
+    readonly backdrop: HTMLElement;
+    /** Panel-sized iframe element. */
     readonly iframe: HTMLIFrameElement;
     /** Document inside the iframe. */
     readonly document: Document;
-    /** `document.body` inside the iframe — mount UI here. */
+    /** `document.body` inside the iframe — mount panel UI here. */
     readonly body: HTMLElement;
-    /** Removes the iframe from the host page. */
+    /** Removes the overlay host from the host page. */
     readonly destroy: () => void;
+};
+
+/** Options for {@link createIsolatedFrame}. */
+export type IsolatedFrameOpts = {
+    /** Closes the overlay when the host backdrop is clicked. */
+    onBackdropClick?: () => void;
+    /** Extra class names on the iframe (feature shell sizing/position). */
+    frameClass?: string | readonly string[];
 };
 
 let isolatedFrameHostChromeInjected = false;
@@ -279,15 +292,33 @@ export function injectStyleIntoDocument(doc: Document, css: string): HTMLStyleEl
     return style;
 }
 
+function normalizeCssSheets(css?: string | readonly string[]): string[] {
+    if (css == null) {
+        return [];
+    }
+    return typeof css === "string" ? [css] : [...css];
+}
+
+function normalizeFrameClasses(frameClass?: string | readonly string[]): string[] {
+    if (frameClass == null) {
+        return [];
+    }
+    return typeof frameClass === "string" ? [frameClass] : [...frameClass];
+}
+
 /**
- * Creates a transparent full-viewport `about:blank` iframe and returns its document shell.
- * Injects {@link CSS_RESET} and {@link GENERAL_CSS} into the frame; pass extra sheets via `css`.
- * Host chrome uses `.sm-isolated-frame`; the document root uses `.sm-ui-root` from `general.css`.
+ * Creates a host overlay: full-viewport backdrop plus a panel-sized `about:blank` iframe.
+ * Injects {@link CSS_RESET} and {@link GENERAL_CSS} into the frame; pass extra sheets via `css`
+ * (also applied on the host so `.sm-isolated-frame` shell rules can size the iframe element).
+ * Host chrome uses `.sm-overlay-host` / `.sm-isolated-frame`; the document root uses `.sm-ui-root`.
  * The frame `head` includes `<meta name="darkreader-lock">` so Dark Reader skips the document.
  * @throws When the iframe document cannot be initialized
  * @see https://github.com/darkreader/darkreader/blob/main/CONTRIBUTING.md#disabling-dark-reader-statically
  */
-export function createIsolatedFrame(css?: string | readonly string[]): IsolatedFrame {
+export function createIsolatedFrame(
+    css?: string | readonly string[],
+    opts: IsolatedFrameOpts = {},
+): IsolatedFrame {
     const parent = document.body ?? document.documentElement;
     if (parent == null) {
         throw new Error("Cannot create isolated frame before documentElement exists");
@@ -295,15 +326,31 @@ export function createIsolatedFrame(css?: string | readonly string[]): IsolatedF
 
     ensureIsolatedFrameHostChrome();
 
+    const host = document.createElement("div");
+    host.className = UICSSMap.OVERLAY_HOST_CLASS;
+
+    const sheets = normalizeCssSheets(css);
+    if (sheets.length > 0) {
+        const hostStyle = document.createElement("style");
+        hostStyle.textContent = sheets.join("\n");
+        host.appendChild(hostStyle);
+    }
+
+    const backdrop = injectBackdrop(host, opts.onBackdropClick);
+
     const iframe = document.createElement("iframe");
-    iframe.className = UICSSMap.ISOLATED_FRAME_CLASS;
+    iframe.className = [
+        UICSSMap.ISOLATED_FRAME_CLASS,
+        ...normalizeFrameClasses(opts.frameClass),
+    ].join(" ");
     iframe.setAttribute("data-sm-isolated-frame", "");
     iframe.title = "SuperMonkey";
-    parent.appendChild(iframe);
+    host.appendChild(iframe);
+    parent.appendChild(host);
 
     const doc = iframe.contentDocument;
     if (doc == null) {
-        iframe.remove();
+        host.remove();
         throw new Error("Isolated frame contentDocument is null");
     }
 
@@ -319,7 +366,7 @@ export function createIsolatedFrame(css?: string | readonly string[]): IsolatedF
     const html = doc.documentElement;
     const body = doc.body;
     if (html == null || body == null) {
-        iframe.remove();
+        host.remove();
         throw new Error("Isolated frame document shell is incomplete");
     }
 
@@ -327,17 +374,18 @@ export function createIsolatedFrame(css?: string | readonly string[]): IsolatedF
 
     injectStyleIntoDocument(doc, CSS_RESET);
     injectStyleIntoDocument(doc, GENERAL_CSS);
-    const sheets = css == null ? [] : typeof css === "string" ? [css] : css;
     for (const sheet of sheets) {
         injectStyleIntoDocument(doc, sheet);
     }
 
     return {
+        host,
+        backdrop,
         iframe,
         document: doc,
         body,
         destroy: () => {
-            iframe.remove();
+            host.remove();
         },
     };
 }

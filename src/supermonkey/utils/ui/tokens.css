@@ -1,6 +1,7 @@
-:host,
 :root,
-html.sm-ui-root {
+:host,
+html.sm-ui-root,
+.sm-overlay-host {
     --sm-color-panel-bg: #555555;
     --sm-color-panel-fg: #eee;
     --sm-color-muted: #ddd;
@@ -30,5 +31,5 @@ html.sm-ui-root {
     --sm-color-on-accent: #fff;
     --sm-size-separator-block: 0.125em;
     --sm-size-separator-list: 0.0625em;
-    --sm-size-panel-width: min(50em, calc(100vw - 1em));
+    --sm-size-panel-width: min(60em, calc(100vw - 1em));
 }

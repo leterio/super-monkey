@@ -1,15 +1,34 @@
-/* Host-page chrome for the isolated iframe element */
-.sm-isolated-frame {
+/* Host-page overlay: backdrop + panel-sized iframe */
+.sm-overlay-host {
     position: fixed;
     inset: 0;
     width: 100%;
     height: 100%;
+    margin: 0;
+    padding: 0;
+    z-index: 2147483647;
+    pointer-events: none;
+}
+
+.sm-overlay-host>.sm-backdrop,
+.sm-overlay-host>.sm-isolated-frame {
+    pointer-events: auto;
+}
+
+.sm-isolated-frame {
+    position: absolute;
+    top: 5vh;
+    left: 50%;
+    transform: translateX(-50%);
+    width: var(--sm-size-panel-width);
+    height: min(90vh, calc(100vh - 5vh));
     border: 0;
     margin: 0;
     padding: 0;
     z-index: 2147483647;
     background: transparent;
     color-scheme: normal;
+    border-radius: 0.5em;
 }
 
 /* Shadow host and iframe document root */
@@ -22,9 +41,8 @@ html.sm-ui-root {
     line-height: initial !important;
 }
 
-/* Full-viewport overlay shell (iframe document or marked shadow host) */
-:host(.sm-ui-root),
-html.sm-ui-root {
+/* Full-viewport overlay shell (marked shadow host) or iframe document fill */
+:host(.sm-ui-root) {
     position: fixed;
     inset: 0;
     width: 100%;
@@ -32,6 +50,14 @@ html.sm-ui-root {
     margin: 0;
     opacity: 1 !important;
     z-index: 2147483647;
+}
+
+html.sm-ui-root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    background-color: var(--sm-color-panel-bg);
+    opacity: 1 !important;
 }
 
 html.sm-ui-root,
@@ -44,6 +70,7 @@ html.sm-ui-root body {
     margin: 0;
     width: 100%;
     height: 100%;
+    background-color: var(--sm-color-panel-bg);
 }
 
 .sm-backdrop {
@@ -64,6 +91,12 @@ html.sm-ui-root body {
     box-shadow: 0 0 0.5em 0 var(--sm-color-panel-shadow);
     opacity: 1;
     z-index: 2147483647;
+}
+
+html.sm-ui-root .sm-panel {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
 }
 
 section {

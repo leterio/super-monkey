@@ -44,7 +44,7 @@ flowchart TD
     M --> N[Publish BEFORE_UNLOAD on unload]
 ```
 
-`@run-at` is `document-start` in `vite.config.ts`. The Integration editor and Integrations menu mount in an isolated iframe (`createIsolatedFrame`) so host-page shortcuts do not receive those keys. Configuration remains a Notification Bar panel. Page CSS from modules uses `GM_addStyle` via `injectStyle`. Construction of loaders and `Component` instances may run while the document is still parsing; host mounting waits for `body` where needed.
+`@run-at` is `document-start` in `vite.config.ts`. Page CSS from modules uses `GM_addStyle` via `injectStyle`. Construction of loaders and `Component` instances may run while the document is still parsing; host mounting waits for `body` where needed.
 
 ## Component isolation
 
