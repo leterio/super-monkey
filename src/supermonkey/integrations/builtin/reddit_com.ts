@@ -92,7 +92,7 @@ export const REDDIT_COM_INTEGRATION: Integration = {
                 static: `/* Issue fixes for Reddit */
 /* Fix issue with zoomable-img on reddit.com */
 zoomable-img > img { margin-bottom: 0; }
-zoomable-img { overflow-x: hidden; width: auto !important; position: relative !important; }
+zoomable-img { overflow: auto !important; width: auto !important; position: relative !important; }
 main > zoomable-img.fixed { height: calc(100vh - 7.5rem); }
 
 /* Adjust notification bar position */
