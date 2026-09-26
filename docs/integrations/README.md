@@ -21,7 +21,7 @@ Match-rule syntax: [Integration DSL](./dsl.md).
 
 Each entry is `{ name, paths }` where `name` is a stable id segment and `paths` is an array of pathname globs (same rules as the editor CSV, including optional `!!` exclusions). Omit `mappedPages` when empty.
 
-At runtime, `SuperMonkey.loadedIntegration.getActivePages()` returns the names whose path patterns match the current tab pathname. Content Manager view/listing `pageFilter` values use those names — not History record/decorate name filters.
+At runtime, `SuperMonkey.loadedIntegration.getActivePages()` returns the names whose path patterns match the current tab pathname. Content Manager view/listing `pageFilter` values and Resources Downloader mapping `pageFilter` values use those names — not History record/decorate name filters.
 
 Factory used at bootstrap: `createGetActivePages` in `src/supermonkey/integrations/mapped-pages.ts`. Path glob rules: [Path patterns](./dsl.md#path-patterns). Filter helper: [Page filter](../utils/page-filter.md). Editor field map (same shape): [Mapped pages](./editor-ui.md#mapped-pages).
 
@@ -91,7 +91,7 @@ Userscript `@match` in `vite.config.ts` is broad (`http://*/*` and `https://*/*`
 
 **Editor text ↔ TypeScript arrays:** in the UI, **Matched domains**, **Page filter**, mapped-page **Paths**, and selector lists are comma-separated (CSV). On a typed `Integration` (and in Share JSON), the same values are `string[]`. When you paste Share JSON into a `.ts` file, keep arrays — do not wrap a CSV string as a single element unless you intend one pattern that contains commas.
 
-**Page filter consumers:** mapped page **names** feed `loadedIntegration.getActivePages()` and Content Manager `pageFilter` on views/listings. History name filters use Content Manager **view** / **listing** names, not mapped page names. See [Page filter](../utils/page-filter.md).
+**Page filter consumers:** mapped page **names** feed `loadedIntegration.getActivePages()`, Content Manager `pageFilter` on views/listings, and Resources Downloader mapping `pageFilter`. History name filters use Content Manager **view** / **listing** names, not mapped page names. See [Page filter](../utils/page-filter.md).
 
 ### From editor Share JSON to typed `Integration`
 

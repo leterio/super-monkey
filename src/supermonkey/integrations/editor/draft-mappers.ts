@@ -180,6 +180,7 @@ export type DraftRdMapping = {
     key: string;
     type: "leaf" | "collection";
     selectors: string;
+    pageFilter: string;
     ignoreDecoration: "true" | "false";
     decoration: DraftRdDecoration;
     urlSources: DraftRdUrlSource[];

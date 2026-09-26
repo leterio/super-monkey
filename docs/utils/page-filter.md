@@ -1,6 +1,6 @@
 # Page filter
 
-Editor authors: set **Page filter** on Content Manager views and listings in the [Integration editor](../integrations/editor-ui.md#content-manager) — see [Content Manager - Page filter](../modules/content-manager.md#page-filter). History name filters use view/listing **names**, not mapped-page names — [History - Name filters](../modules/history.md#name-filters).
+Editor authors: set **Page filter** on Content Manager views and listings in the [Integration editor](../integrations/editor-ui.md#content-manager) — see [Content Manager - Page filter](../modules/content-manager.md#page-filter). Resources Downloader mappings use the same field against mapped pages — [Resources Downloader - Page filter](../modules/resources-downloader.md#page-filter). History name filters use view/listing **names**, not mapped-page names — [History - Name filters](../modules/history.md#name-filters).
 
 This page is the shared allow/deny rule reference (`passesPageFilter` and the `!!` prefix from [Integration DSL](../integrations/dsl.md)).
 
@@ -22,6 +22,7 @@ Spell names exactly as defined by the consumer. An unknown allowlist name never 
 | Consumer | Active names | Filter fields |
 | -------- | ------------ | ------------- |
 | Content Manager | Mapped-page names from `getActivePages()` | View/listing `pageFilter` — [Page filter](../modules/content-manager.md#page-filter) |
+| Resources Downloader | Mapped-page names from `getActivePages()` | Mapping `pageFilter` — [Page filter](../modules/resources-downloader.md#page-filter) |
 | History | Content Manager view/listing **`name`** values on the entry | `recordFilter` / `decorateFilter` — [Name filters](../modules/history.md#name-filters) |
 
 ## Contributors
@@ -39,6 +40,7 @@ passesPageFilter(["catalog"], ["detail"]); // false
 ## See also
 
 - [Content Manager - Page filter](../modules/content-manager.md#page-filter)
+- [Resources Downloader - Page filter](../modules/resources-downloader.md#page-filter)
 - [History - Name filters](../modules/history.md#name-filters)
 - [Mapped pages](../integrations/editor-ui.md#mapped-pages) · [Mapped pages (TypeScript)](../integrations/README.md#mapped-pages-typescript)
 - [Integration DSL](../integrations/dsl.md)
