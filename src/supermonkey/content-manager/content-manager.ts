@@ -190,11 +190,8 @@ export class ContentManager extends Component {
                 continue;
             }
 
-            this.log.trace("View selector matched element for group:", groupKey, element);
-
             const id = ContentManager.resolveEntityId(view.idSource, element);
             if (id == null) {
-                this.log.trace("View id unresolved for group:", groupKey, element);
                 continue;
             }
 
@@ -352,15 +349,12 @@ export class ContentManager extends Component {
         const entities: ListedEntity[] = [];
 
         for (const matched of queryAll(listingOpts.entriesSelectors, container)) {
-            this.log.trace("Listing entry selector matched for group:", groupKey, matched);
-
             const managedElement = ContentManager.resolveManagedElement(
                 matched,
                 container,
                 listingOpts.entryContainerSelector,
             );
             if (managedElement == null) {
-                this.log.trace("Entry container unresolved for group:", groupKey, matched);
                 continue;
             }
 
@@ -370,7 +364,6 @@ export class ContentManager extends Component {
 
             const id = ContentManager.resolveEntityId(listingOpts.entryIdSource, matched);
             if (id == null) {
-                this.log.trace("Listing entry id unresolved for group:", groupKey, matched);
                 continue;
             }
 
