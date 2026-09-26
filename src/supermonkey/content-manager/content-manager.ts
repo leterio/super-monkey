@@ -186,11 +186,11 @@ export class ContentManager extends Component {
         const entities: Entity[] = [];
 
         for (const element of queryAll(selectors, sourceDocument)) {
-            this.log.trace("View selector matched element for group:", groupKey, element);
-
             if (ContentManager.isViewed(element, groupKey)) {
                 continue;
             }
+
+            this.log.trace("View selector matched element for group:", groupKey, element);
 
             const id = ContentManager.resolveEntityId(view.idSource, element);
             if (id == null) {
