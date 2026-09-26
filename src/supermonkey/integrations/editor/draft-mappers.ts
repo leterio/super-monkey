@@ -90,6 +90,13 @@ export type DraftCustomCssOption = {
 
 export type DraftCustomCssRuleType = "boolean" | "number" | "options";
 
+export type DraftCustomCssOnEventType =
+    | ""
+    | "contentLoaded"
+    | "entityViewed"
+    | "entitiesParsed"
+    | "entitiesInjected";
+
 export type DraftCustomCssRule = {
     type: DraftCustomCssRuleType;
     key: string;
@@ -102,6 +109,8 @@ export type DraftCustomCssRule = {
     max: string;
     defaultValueOption: string;
     options: DraftCustomCssOption[];
+    shadowRootSelectors: string;
+    onEventType: DraftCustomCssOnEventType;
 };
 
 export type DraftCustomCssOpts = {

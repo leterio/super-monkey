@@ -1,8 +1,22 @@
 import { Normalized, OptsNormalization } from "../../utils/opts/normalization";
-import { readOptionalFiniteNumber } from "../../utils/opts/opts-fields";
+import { readOptionalFiniteNumber, readStringList } from "../../utils/opts/opts-fields";
 import { isValidId, trimToUndefined } from "../../utils/string";
 import { isPlainObject } from "../../utils/type";
 import type { ModuleOpts } from "../module";
+
+/** Lifecycle / Content Manager hook that applies a shadow-root Custom CSS rule. */
+export type CustomCssOnEventType =
+    | "contentLoaded"
+    | "entityViewed"
+    | "entitiesParsed"
+    | "entitiesInjected";
+
+const ON_EVENT_TYPES: readonly CustomCssOnEventType[] = [
+    "contentLoaded",
+    "entityViewed",
+    "entitiesParsed",
+    "entitiesInjected",
+];
 
 export type CustomCssOption = {
     readonly label: string;
@@ -14,6 +28,14 @@ type CustomCssRuleBase = {
     readonly css: string;
     readonly label?: string;
     readonly description?: string;
+    /**
+     * Selectors that resolve to shadow roots (`:shadowRoot` chain).
+     * When set, the same `css` is also adopted into those roots on {@link onEventType}
+     * in addition to the document stylesheet injection.
+     */
+    readonly shadowRootSelectors?: readonly string[];
+    /** When {@link shadowRootSelectors} is set, hook that runs the additional shadow adoption. */
+    readonly onEventType?: CustomCssOnEventType;
 };
 
 export type CustomCssBooleanRule = CustomCssRuleBase & {
@@ -149,16 +171,22 @@ function normalizeRule(
         return undefined;
     }
 
-    seenKeys.add(key);
-
     const label = trimToUndefined(raw.label);
     const description = trimToUndefined(raw.description);
+
+    const shadow = normalizeShadowFields(raw, path, walk);
+    if (shadow === "reject") {
+        return undefined;
+    }
+
+    seenKeys.add(key);
 
     const base = {
         key,
         css,
         ...(label != null ? { label } : {}),
         ...(description != null ? { description } : {}),
+        ...shadow,
     };
 
     switch (type) {
@@ -169,6 +197,47 @@ function normalizeRule(
         case "options":
             return normalizeOptionsRule(raw, path, base, walk);
     }
+}
+
+
+function normalizeShadowFields(
+    raw: Record<string, unknown>,
+    path: string,
+    walk: OptsNormalization,
+): { shadowRootSelectors?: readonly string[]; onEventType?: CustomCssOnEventType } | "reject" | Record<string, never> {
+    const selectors = readStringList(raw.shadowRootSelectors, `${path}.shadowRootSelectors`, walk, {
+        label: "shadowRootSelectors",
+        onEmpty: "omit",
+    });
+
+    const hasOnEvent = raw.onEventType != null && raw.onEventType !== "";
+
+    if (selectors == null || selectors.length === 0) {
+        if (hasOnEvent) {
+            walk.repair(
+                `${path}.onEventType`,
+                "ignored onEventType because shadowRootSelectors is empty",
+            );
+        }
+        return {};
+    }
+
+    if (!isCustomCssOnEventType(raw.onEventType)) {
+        walk.repair(
+            `${path}.onEventType`,
+            "onEventType is required when shadowRootSelectors is set (contentLoaded, entityViewed, entitiesParsed, or entitiesInjected)",
+        );
+        return "reject";
+    }
+
+    return {
+        shadowRootSelectors: selectors,
+        onEventType: raw.onEventType,
+    };
+}
+
+function isCustomCssOnEventType(value: unknown): value is CustomCssOnEventType {
+    return typeof value === "string" && (ON_EVENT_TYPES as readonly string[]).includes(value);
 }
 
 function normalizeBooleanRule(

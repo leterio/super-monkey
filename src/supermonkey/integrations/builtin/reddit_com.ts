@@ -68,7 +68,28 @@ export const REDDIT_COM_INTEGRATION: Integration = {
                         [data-sm-rd-decorated-by="video"] > .sm-rd-download-btn { --sm-rd-offset-top: 3em; }
                         [id="shreddit-media-lightbox"] .sm-rd-download-btn { --sm-rd-offset-top: 5em; --sm-rd-offset-right: 0.5em; --sm-rd-button-size: 4.5em; }
                         .sm-rd-download-btn { opacity: 0.25; }
-                    `
+                    `,
+                rules: [
+                    {
+                        key: "largerPostsLayout",
+                        type: "boolean",
+                        defaultValue: false,
+                        label: "Larger posts layout",
+                        description: "If enabled, posts use a larger layout and gallery carousels get a larger height. Recommended for larger screens.",
+                        onEventType: "entitiesInjected",
+                        shadowRootSelectors: ["gallery-carousel:shadowRoot"],
+                        css: `
+                            @media (min-width: 1200px) {
+                                #subgrid-container { width: max(80%, 1120px); }
+                                .main-container { grid-template-columns: minmax(0, 100%) minmax(0, 316px) !important; }
+                                [id$='aspect-ratio'] { max-height: 70vh !important; }
+                            }
+                            faceplate-carousel {
+                                max-height: 70vh !important;
+                            }
+                        `,
+                    },
+                ],
             },
         },
         resourcesDownloader: {
