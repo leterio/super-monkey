@@ -118,12 +118,12 @@ shreddit-post[data-sm-rd-decorated-by] > [slot="title"] { width: calc(100% - 2em
                         description: "If enabled, posts use a larger layout and gallery carousels get a larger height. Recommended for larger screens.",
                         onEventType: "entitiesInjected",
                         shadowRootSelectors: ["gallery-carousel:shadowRoot"],
-                        css: `@media(min - width: 1200px) {
-    #subgrid - container { width: max(80 %, 1120px); }
-    .main - container { grid - template - columns: minmax(0, 100 %) minmax(0, 316px)!important; }
-    [id$ = 'aspect-ratio'] { max - height: 70dvh!important; }
+                        css: `@media(min-width: 1200px) {
+    #subgrid-container { width: max(80%, 1120px); }
+    .main-container { grid-template-columns: minmax(0, 100%) minmax(0, 316px) !important; }
+    [id$='aspect-ratio'] { max-height: 70dvh !important; }
 }
-faceplate - carousel { max - height: 70dvh!important; }`,
+faceplate-carousel { max-height: 70dvh !important; }`,
                     },
                 ],
             } as CustomCssOpts,
