@@ -1,5 +1,8 @@
+import { GM_addStyle } from "$";
+
 /**
- * Appends a `<style>` element to `document.head`.
+ * Injects a `<style>` element via {@link GM_addStyle} and returns it for later updates.
+ * Works at `document-start` without requiring `document.head`.
  * When `css` is provided, sets it as the style text content.
  */
 export function injectStyle(css?: string): HTMLStyleElement {
@@ -7,12 +10,7 @@ export function injectStyle(css?: string): HTMLStyleElement {
         throw new Error("CSS must be a string.");
     }
 
-    const style = document.createElement("style");
-    if (css !== undefined) {
-        style.textContent = css;
-    }
-    document.head.appendChild(style);
-    return style;
+    return GM_addStyle(css ?? "");
 }
 
 /** Result of normalizing CSS that uses `&` as a selector placeholder. */

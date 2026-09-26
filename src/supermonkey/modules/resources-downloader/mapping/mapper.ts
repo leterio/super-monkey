@@ -1,8 +1,10 @@
+import { ListedEntity } from "../../../content-manager/events";
+import { SuperMonkey } from "../../../supermonkey";
 import { traceDuration } from "../../../utils/async";
 import { QueryableBaseElement, queryAll } from "../../../utils/dom/query";
-import { Logger } from "../../../utils/logger";
-import { ListedEntity } from "../../../content-manager/events";
 import { ItemState } from "../../../utils/item-state";
+import { Logger } from "../../../utils/logger";
+import { passesPageFilter } from "../../../utils/page-filter";
 import {
     MAPPED_BY_ATTR,
     RESOURCE_STATE_ATTR,
@@ -57,18 +59,28 @@ export class ResourcesMapper {
     }
 
     private mapFrom(bases: QueryableBaseElement[]): Resource[] {
+        const activePages = SuperMonkey.loadedIntegration?.getActivePages() ?? [];
         const resources = bases.flatMap((base) =>
-            this.entryPoints.flatMap((key) => this.scanMapping(key, base)),
+            this.entryPoints.flatMap((key) => this.scanMapping(key, base, activePages)),
         );
         this.log.debug("Found", resources.length, "resources on", bases.length, "base elements");
 
         return resources;
     }
 
-    private scanMapping(mappingKey: string, baseElement: QueryableBaseElement): Resource[] {
+    private scanMapping(
+        mappingKey: string,
+        baseElement: QueryableBaseElement,
+        activePages: readonly string[],
+    ): Resource[] {
         const mapping = this.mappings[mappingKey];
         if (mapping == null) {
             this.log.warn(`Unknown mapping key: ${mappingKey}`);
+            return [];
+        }
+
+        if (!passesPageFilter(mapping.pageFilter, activePages)) {
+            this.log.trace("Skipping mapping", mappingKey, "because it does not pass page filter", mapping.pageFilter, "on", activePages);
             return [];
         }
 
@@ -76,7 +88,7 @@ export class ResourcesMapper {
             .filter((element) => !element.hasAttribute(MAPPED_BY_ATTR))
             .flatMap((element) => {
                 if (mapping.type === "collection") {
-                    return this.scanCollectionElement(element, mappingKey, mapping);
+                    return this.scanCollectionElement(element, mappingKey, mapping, activePages);
                 }
 
                 return [ResourcesMapper.createLeaf(element, mappingKey)];
@@ -136,9 +148,10 @@ export class ResourcesMapper {
         element: HTMLElement,
         mappedBy: string,
         mapping: ResourcesMappingCollection,
+        activePages: readonly string[],
     ): Resource[] {
         const childResources = mapping.children.flatMap((childKey) =>
-            this.scanMapping(childKey, element),
+            this.scanMapping(childKey, element, activePages),
         );
 
         if (childResources.length === 0) {

@@ -12,3 +12,15 @@ input.sm-cfg-share-int {
     cursor: pointer;
     width: fit-content;
 }
+
+.sm-cfg-actions {
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    padding-top: 0.25em;
+    padding-bottom: 0.25em;
+}
+
+.sm-cfg-actions button.button {
+    width: 100%;
+}

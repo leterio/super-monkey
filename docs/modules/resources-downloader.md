@@ -16,6 +16,7 @@ In the [Integration editor](../integrations/editor-ui.md), set **Module key** to
 | Full opts             | [What you configure](#what-you-configure)                             |
 | Single resource       | [Leaf mapping](#leaf-mapping)                                         |
 | Nested resources      | [Collection mapping](#collection-mapping)                             |
+| Page gating           | [Page filter](#page-filter)                                           |
 | Button placement      | [Decoration](#decoration)                                             |
 | Multi-step fetches    | [Download modes](#download-modes)                                     |
 | Defaults              | [Built-in mappings](#built-in-mappings)                               |
@@ -185,6 +186,7 @@ Matches elements that each represent **one** downloadable resource.
 | `selectors`        | yes      | Non-empty `string[]` - elements that hold the resource                                                                                                                            |
 | `urlSources`       | yes      | Ordered list of attribute **names** (`string`) and/or [`ValueSource`](../utils/value-source.md) objects. At download time, the first non-empty value on the **live** element wins |
 | `downloadMode`     | no       | Mode name (defaults to `"download"`)                                                                                                                                              |
+| `pageFilter`       | no       | Optional mapped-page names that gate this mapping. Empty/omitted runs on every page. See [Page filter](#page-filter)                                                              |
 | `ignoreDecoration` | no       | When `true`, skip the download button for this mapping                                                                                                                            |
 | `decoration`       | no       | Where/how to attach the button - see [Decoration](#decoration)                                                                                                                    |
 
@@ -197,10 +199,28 @@ Matches a **container**, then scans nested mapping keys inside it.
 | `type`             | yes      | `"collection"`                                                               |
 | `selectors`        | yes      | Non-empty `string[]` - container elements                                    |
 | `children`         | yes      | Mapping keys to scan inside each container (must exist; cycles are rejected) |
+| `pageFilter`       | no       | Optional mapped-page names that gate this mapping. Empty/omitted runs on every page. See [Page filter](#page-filter) |
 | `ignoreDecoration` | no       | When `true`, skip decoration on the collection itself                        |
 | `decoration`       | no       | See [Decoration](#decoration)                                                |
 
 A collection with a **single** child leaf is flattened to that leaf for the resource tree (the leaf keeps the child’s `mappedBy` and has no `parent`). The collection element still receives `data-sm-rd-mapped-by` with the **collection** key. Empty collections are omitted. Nested collections remain children of the parent collection.
+
+## Page filter
+
+Each leaf and collection may set `pageFilter` against the integration's [mapped pages](../integrations/editor-ui.md#mapped-pages) ([TypeScript](../integrations/README.md#mapped-pages-typescript)). At the start of every Resources Downloader scan batch, Super Monkey resolves which mapped-page names match the current pathname, then skips any mapping that fails the filter (including nested `children` keys).
+
+Rules and `!!` exclusions: [Page filter](../utils/page-filter.md). Content Manager uses the same helper on views/listings — [Content Manager - Page filter](./content-manager.md#page-filter).
+
+```json
+{
+  "type": "leaf",
+  "selectors": ["img.preview"],
+  "urlSources": ["src"],
+  "pageFilter": ["detail", "!!settings"]
+}
+```
+
+Spell mapped-page names exactly as defined under **Mapped pages**. A typo in `pageFilter` never matches, so an allowlist with an unknown name skips the mapping on every URL.
 
 ## Decoration
 
@@ -325,7 +345,7 @@ Notification Bar: a `ProgressMenuEntry` exposes download progress plus **Downloa
 | Outcome    | When                                                                                                                                                                                                                                                                              |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Reject** | Raw opts are not an object; `mappings` missing/empty; no usable user mappings remain; no scannable **user entry points** (builtins alone are not enough).                                                                                                                         |
-| **Repair** | Bad mappings or download modes dropped; empty selectors / urlSources / children fixed or dropped; unknown `downloadMode` drops the leaf; cycles and dangling collection children removed; user keys identical to a built-in mapping removed; mid-pipeline `download` steps drop the mode; missing final `download` step is appended. |
+| **Repair** | Bad mappings or download modes dropped; empty selectors / urlSources / children / `pageFilter` fixed or dropped; unknown `downloadMode` drops the leaf; cycles and dangling collection children removed; user keys identical to a built-in mapping removed; mid-pipeline `download` steps drop the mode; missing final `download` step is appended. |
 
 The loader constructs `ResourcesDownloader` with the cleaned `value`. Repair findings log as WARN (`Module options were repaired:`). A missing `value` logs FATAL for that instance.
 

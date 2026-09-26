@@ -1,8 +1,9 @@
-import { randomString } from "../../../utils/string";
+import { joinCsv, randomString, splitCsv } from "../../../utils/string";
 import { isPlainObject } from "../../../utils/type";
 import { injectSection } from "../../../utils/ui/ui-builder";
 import type { IntegrationValidationIssue } from "../../integration-validation";
 import type {
+    DraftCustomCssOnEventType,
     DraftCustomCssOption,
     DraftCustomCssOpts,
     DraftCustomCssRule,
@@ -14,6 +15,23 @@ import type { ModuleOptsForm } from "./module-opts-form";
 import { ModuleOptsFormRegistry } from "./module-opts-form-registry";
 
 const MODULE_KEY = "CustomCss";
+
+const ON_EVENT_VALUES: DraftCustomCssOnEventType[] = [
+    "",
+    "contentLoaded",
+    "entityViewed",
+    "entitiesParsed",
+    "entitiesInjected",
+];
+
+const ON_EVENT_LABELS: Record<DraftCustomCssOnEventType, string> = {
+    "": "None (page CSS only)",
+    contentLoaded: "contentLoaded (document)",
+    entityViewed: "entityViewed (viewed entity)",
+    entitiesParsed: "entitiesParsed (each listed entity)",
+    entitiesInjected: "entitiesInjected (each injected entity)",
+};
+
 
 const customCssOptsForm: ModuleOptsForm = {
     moduleKey: MODULE_KEY,
@@ -259,11 +277,31 @@ function mountRuleFields(
         rule.options.forEach((option) => mountOption(optionsSection, option, rule.options, base, ui));
     }
 
+    ui.field(host, `${id}-shadow-selectors`, "Shadow root selectors", ui.textInput(
+        rule.shadowRootSelectors,
+        (value) => {
+            rule.shadowRootSelectors = value;
+        },
+    ), {
+        path: `${base}.shadowRootSelectors`,
+        help: "Optional. Comma-separated host chains ending with :shadowRoot (example: media-host:shadowRoot). When set, the same CSS is also adopted into those open shadows; page (document) injection still runs.",
+    });
+    ui.field(host, `${id}-on-event`, "On event", ui.select(
+        ON_EVENT_VALUES,
+        rule.onEventType,
+        (value) => {
+            rule.onEventType = value as DraftCustomCssOnEventType;
+        },
+        ON_EVENT_LABELS,
+    ), {
+        path: `${base}.onEventType`,
+        help: "Required when Shadow root selectors are set. None = page CSS only. contentLoaded queries document; entityViewed uses the viewed element (or document); entitiesParsed / entitiesInjected use each entity element.",
+    });
     ui.field(host, `${id}-css`, "CSS", ui.textarea(rule.css, (value) => {
         rule.css = value;
     }), {
         path: `${base}.css`,
-        help: "CSS injected when the preference is active. Number rules may use {{VALUE}} for the numeric preference.",
+        help: "CSS injected into the document when the preference is active, and also into matching shadow roots when shadow selectors are set. Number/options may use {{VALUE}}.",
         column: true,
     });
 }
@@ -337,6 +375,12 @@ function ruleToDraft(raw: unknown): DraftCustomCssRule | undefined {
                 }))
             : [];
     }
+
+    draft.shadowRootSelectors = Array.isArray(raw.shadowRootSelectors)
+        ? joinCsv(raw.shadowRootSelectors.filter((entry): entry is string => typeof entry === "string"))
+        : "";
+    draft.onEventType = isOnEventType(raw.onEventType) ? raw.onEventType : "";
+
     return draft;
 }
 
@@ -345,6 +389,8 @@ function isEmptyRule(rule: DraftCustomCssRule): boolean {
         && rule.label.trim().length === 0
         && rule.description.trim().length === 0
         && rule.css.trim().length === 0
+        && rule.shadowRootSelectors.trim().length === 0
+        && rule.onEventType === ""
         && rule.options.every((option) => option.label.trim().length === 0 && option.value.trim().length === 0);
 }
 
@@ -362,12 +408,27 @@ function draftRuleToOpts(rule: DraftCustomCssRule):
 
     const label = rule.label.trim();
     const description = rule.description.trim();
+    const shadowRootSelectors = splitCsv(rule.shadowRootSelectors);
+    const onEventType = rule.onEventType;
+    if (shadowRootSelectors.length > 0 && onEventType === "") {
+        return {
+            ok: false,
+            issue: {
+                path: "onEventType",
+                message: "On event is required when shadow root selectors are set.",
+            },
+        };
+    }
+
     const base: Record<string, unknown> = {
         type: rule.type,
         key,
         css: rule.css,
         ...(label.length > 0 ? { label } : {}),
         ...(description.length > 0 ? { description } : {}),
+        ...(shadowRootSelectors.length > 0
+            ? { shadowRootSelectors, onEventType }
+            : {}),
     };
 
     if (rule.type === "boolean") {
@@ -460,7 +521,16 @@ function emptyRule(type: DraftCustomCssRuleType = "boolean"): DraftCustomCssRule
         max: "",
         defaultValueOption: "",
         options: [],
+        shadowRootSelectors: "",
+        onEventType: "",
     };
+}
+
+function isOnEventType(value: unknown): value is Exclude<DraftCustomCssOnEventType, ""> {
+    return value === "contentLoaded"
+        || value === "entityViewed"
+        || value === "entitiesParsed"
+        || value === "entitiesInjected";
 }
 
 function emptyOption(): DraftCustomCssOption {

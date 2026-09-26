@@ -91,7 +91,7 @@ export class KeyboardNavigation extends Module<KeyboardNavigationOpts> {
             return;
         }
 
-        if (KeyboardNavigation.isEditableFocus()) {
+        if (KeyboardNavigation.eventTargetsEditable(event)) {
             return;
         }
 
@@ -142,17 +142,21 @@ export class KeyboardNavigation extends Module<KeyboardNavigationOpts> {
         target.click();
     }
 
-    private static isEditableFocus(): boolean {
-        const active = document.activeElement;
-        if (!(active instanceof HTMLElement)) {
-            return false;
+    /** True when `composedPath()` includes an editable (including Shadow DOM). */
+    private static eventTargetsEditable(event: KeyboardEvent): boolean {
+        for (const node of event.composedPath()) {
+            if (node == null || typeof node !== "object" || (node as Node).nodeType !== 1) {
+                continue;
+            }
+            const element = node as HTMLElement;
+            if (element.isContentEditable === true) {
+                return true;
+            }
+            const tag = element.tagName;
+            if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+                return true;
+            }
         }
-
-        if (active.isContentEditable) {
-            return true;
-        }
-
-        const tag = active.tagName;
-        return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+        return false;
     }
 }

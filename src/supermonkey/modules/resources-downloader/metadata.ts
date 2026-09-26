@@ -68,6 +68,11 @@ export type ResourcesDecoration = {
 
 type BaseResourcesMapping = {
     readonly selectors: string[];
+    /**
+     * Optional page filter for this mapping.
+     * Allowlist, denylist (`!!`), or hybrid names from `mappedPages`; empty/omitted runs on every page.
+     */
+    readonly pageFilter?: readonly string[];
     /** Skip attaching a download control for this mapping. */
     readonly ignoreDecoration?: boolean;
     readonly decoration?: ResourcesDecoration;

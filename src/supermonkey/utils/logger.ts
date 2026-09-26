@@ -55,7 +55,7 @@ export class Logger {
 
         if (messages.length > 0) {
             const last = messages[messages.length - 1];
-            if (last != null && typeof last === "object") {
+            if (last != null && typeof last === "object" && !(last instanceof Element)) {
                 tablePayload = last;
                 head = messages.slice(0, -1);
             }

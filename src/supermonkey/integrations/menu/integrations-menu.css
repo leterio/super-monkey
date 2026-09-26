@@ -1,17 +1,5 @@
-:host {
-    position: fixed;
-    inset: 0;
-    opacity: 1 !important;
-    z-index: 2147483647;
-}
-
 .sm-int-menu {
-    position: absolute;
-    top: 5vh;
-    left: 50%;
-    transform: translateX(-50%);
     display: flex;
-    max-height: min(90vh, calc(100vh - 5vh));
     overflow: hidden;
 }
 

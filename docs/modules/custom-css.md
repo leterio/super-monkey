@@ -6,19 +6,20 @@ In the [Integration editor](../integrations/editor-ui.md), set **Module key** to
 
 ## Quick reference
 
-| On this page       | Reference                                             |
-| ------------------ | ----------------------------------------------------- |
-| Editor options     | [Options shape](#options-shape)                       |
-| Editor walkthrough | [In the editor (Pattern A)](#in-the-editor-pattern-a) |
-| TypeScript wiring  | [TypeScript wiring](#typescript-wiring)               |
-| Prerequisites      | [Before you enable it](#before-you-enable-it)         |
-| Minimum viable     | [Minimum viable setup](#minimum-viable-setup)         |
-| Choosing shape     | [Pick a styling shape](#pick-a-styling-shape)         |
-| Full opts          | [What you configure](#what-you-configure)             |
-| Always-on CSS      | [Static CSS](#static-css)                             |
-| User-tunable CSS   | [Rules](#rules) · [Rule types](#rule-types)           |
-| Stable DOM hooks   | [Stable styling hooks](#stable-styling-hooks)         |
-| Opts walk          | [Normalization](#normalization)                       |
+| On this page       | Reference                                                                                                             |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Editor options     | [Options shape](#options-shape)                                                                                       |
+| Editor walkthrough | [In the editor (Pattern A)](#in-the-editor-pattern-a) · [Pattern D - Shadow](#in-the-editor-pattern-d---shadow-roots) |
+| TypeScript wiring  | [TypeScript wiring](#typescript-wiring)                                                                               |
+| Prerequisites      | [Before you enable it](#before-you-enable-it)                                                                         |
+| Minimum viable     | [Minimum viable setup](#minimum-viable-setup)                                                                         |
+| Choosing shape     | [Pick a styling shape](#pick-a-styling-shape)                                                                         |
+| Full opts          | [What you configure](#what-you-configure)                                                                             |
+| Always-on CSS      | [Static CSS](#static-css)                                                                                             |
+| User-tunable CSS   | [Rules](#rules) · [Rule types](#rule-types)                                                                           |
+| Shadow roots       | [Shadow root rules](#shadow-root-rules)                                                                               |
+| Stable DOM hooks   | [Stable styling hooks](#stable-styling-hooks)                                                                         |
+| Opts walk          | [Normalization](#normalization)                                                                                       |
 
 ## Options shape
 
@@ -67,6 +68,25 @@ Stored and TypeScript integrations use this opts object (`module: "CustomCss"`).
 }
 ```
 
+**Boolean rule that also styles inside open shadow roots:**
+
+```json
+{
+  "rules": [
+    {
+      "type": "boolean",
+      "key": "enlargeMediaWidget",
+      "label": "Enlarge media widget",
+      "defaultValue": false,
+      "description": "Makes the site media widget taller when enabled.",
+      "onEventType": "entitiesInjected",
+      "shadowRootSelectors": ["media-host:shadowRoot"],
+      "css": ".media-frame { max-height: 70vh; }"
+    }
+  ]
+}
+```
+
 Full field table: [What you configure](#what-you-configure). Stable markers for History and Content Manager: [Stable styling hooks](#stable-styling-hooks).
 
 ## In the editor (Pattern A)
@@ -77,6 +97,18 @@ Full field table: [What you configure](#what-you-configure). Stable markers for 
 4. Save, reload, and confirm styles apply (or the new Configuration Menu control appears for rules).
 5. If **Save** fails validation, fix the opts fields - `validateIntegration` runs Custom CSS opts normalization at Save time; empty opts (no usable static and no rules) reject and block Save ([editor validation](../integrations/editor-ui.md#validation)).
 6. If the module is missing **after reload**, check FATAL `Failed to load module:` in [Runtime signals](../integrations/runtime-signals.md) - unknown module key, rejected opts at load, or constructor failure skips that instance.
+
+## In the editor (Pattern D - Shadow roots)
+
+Use when page CSS alone cannot reach inside a site widget that uses an **open** shadow root. Document injection still runs; shadow adoption is additional.
+
+1. Configure [Content Manager](./content-manager.md) if **On event** will be `entityViewed`, `entitiesParsed`, or `entitiesInjected` (those hooks need CM events). `contentLoaded` also depends on Content Manager publishing content-ready.
+2. Add a **Rule** (boolean, number, or options) with **Key**, **Label**, and **CSS** as usual.
+3. Set **Shadow root selectors** to a comma-separated list of host chains ending with `:shadowRoot` (for example `media-host:shadowRoot`). Leave empty when you only want page CSS.
+4. Set **On event** to the hook that should run shadow adoption. Choose **None (page CSS only)** when **Shadow root selectors** is empty.
+5. Save, reload, enable the rule in the Configuration Menu, and confirm both the page styles and the widget interior update.
+
+Field map: [Rules](#rules). Selector grammar: [Shadow root rules](#shadow-root-rules).
 
 ## TypeScript wiring
 
@@ -156,6 +188,29 @@ modules: {
 },
 ```
 
+**Pattern D - Also style inside open shadow roots:**
+
+```ts
+modules: {
+  siteCss: {
+    module: "CustomCss",
+    opts: {
+      rules: [{
+        type: "boolean",
+        key: "enlargeMediaWidget",
+        label: "Enlarge media widget",
+        defaultValue: false,
+        onEventType: "entitiesInjected",
+        shadowRootSelectors: ["media-host:shadowRoot"],
+        css: `
+.media-frame { max-height: 70vh; }
+`,
+      }],
+    },
+  },
+},
+```
+
 Menu-backed rules appear under this module instance in the Configuration Menu - see [Configuration](./configuration.md#style-mixin).
 
 ## Before you enable it
@@ -165,7 +220,7 @@ Provide **at least one** of:
 - **`static`** - non-empty CSS string injected into `document.head` when the module constructs.
 - **`rules`** - non-empty array of typed rules; each becomes a stored configuration that injects CSS from its value.
 
-Custom CSS does not depend on Content Manager. Styles apply at construction; rule-backed styles follow stored preferences and style mixin updates.
+Document-only Custom CSS (no **Shadow root selectors**) does not require Content Manager. Every shadow **On event** value — including `contentLoaded` — needs Content Manager to publish the matching lifecycle or content event so adoption can run; page CSS from the same rule still applies without those events.
 
 `ModuleLoader` runs `normalizeCustomCssOpts` before construction. With no usable `static` and no remaining rules after the walk, opts **reject** (no instance).
 
@@ -185,14 +240,19 @@ Use when the user should turn a style pack on or off (for example History decora
 
 Combine always-on CSS with menu-backed rules.
 
+### Pattern D - Also style inside open shadow roots
+
+Use [In the editor (Pattern D)](#in-the-editor-pattern-d---shadow-roots) when widgets use open shadow DOM. Pair **Shadow root selectors** with **On event**.
+
 ## Pick a styling shape
 
-| Goal                                            | Put it in                      | Appears in Configuration Menu |
-| ----------------------------------------------- | ------------------------------ | ----------------------------- |
-| Always apply (offsets, hide chrome, fix layout) | `static`                       | No                            |
-| User on/off style pack                          | `rules` with `type: "boolean"` | Yes (toggle)                  |
-| User picks a numeric CSS value                  | `rules` with `type: "number"`  | Yes (number)                  |
-| User picks among fixed CSS snippets/values      | `rules` with `type: "options"` | Yes (select)                  |
+| Goal                                                                  | Put it in                                                                              | Appears in Configuration Menu |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------- |
+| Always apply (offsets, hide chrome, fix layout)                       | `static`                                                                               | No                            |
+| User on/off style pack                                                | `rules` with `type: "boolean"`                                                         | Yes (toggle)                  |
+| User picks a numeric CSS value                                        | `rules` with `type: "number"`                                                          | Yes (number)                  |
+| User picks among fixed CSS snippets/values                            | `rules` with `type: "options"`                                                         | Yes (select)                  |
+| Also adopt the same CSS into open shadow roots on CM/lifecycle events | `rules` with `shadowRootSelectors` + `onEventType` (in addition to document injection) | Yes (same type controls)      |
 
 ## What you configure
 
@@ -220,16 +280,20 @@ Whitespace-only `static` is treated as absent.
 
 Each rule needs a unique `key` (`[A-Za-z0-9_-]+`), a non-empty `css` string, and a `type`.
 
-| Field          | Required | What you set                                                               |
-| -------------- | -------- | -------------------------------------------------------------------------- |
-| `type`         | yes      | `"boolean"`, `"number"`, or `"options"`                                    |
-| `key`          | yes      | Storage key segment for the configuration (unique per Custom CSS instance) |
-| `css`          | yes      | CSS to inject; use `{{VALUE}}` for `number` and `options`                  |
-| `label`        | no       | Configuration Menu label (defaults to `key`)                               |
-| `description`  | no       | Optional help text in the menu                                             |
-| `defaultValue` | no       | Default stored value (see [Rule types](#rule-types))                       |
+| Field (JSON / TypeScript) | Editor label              | Required | What you set                                                                                                                                                  |
+| ------------------------- | ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`                    | **Rule type**             | yes      | `"boolean"`, `"number"`, or `"options"`                                                                                                                       |
+| `key`                     | **Key**                   | yes      | Storage key segment (unique per Custom CSS instance)                                                                                                          |
+| `css`                     | **CSS**                   | yes      | CSS for the page stylesheet; use `{{VALUE}}` for `number` and `options`. The same string is adopted into matching open shadows when shadow fields are set     |
+| `label`                   | **Label**                 | no       | Configuration Menu label (defaults to `key`)                                                                                                                  |
+| `description`             | **Description**           | no       | Optional help text in the Configuration Menu                                                                                                                  |
+| `defaultValue`            | **Default**               | no       | Default stored value (see [Rule types](#rule-types))                                                                                                          |
+| `shadowRootSelectors`     | **Shadow root selectors** | no\*     | Comma-separated host chains ending with `:shadowRoot` (see [Shadow root rules](#shadow-root-rules))                                                           |
+| `onEventType`             | **On event**              | no\*     | Hook for shadow adoption: `contentLoaded`, `entityViewed`, `entitiesParsed`, or `entitiesInjected`. Empty / **None (page CSS only)** when selectors are empty |
 
-Duplicate or invalid keys are dropped during normalization.
+- When **Shadow root selectors** is non-empty, **On event** is required. Page (document) injection always runs; shadow adoption is additional.
+
+Duplicate or invalid keys are dropped during normalization. Rules with `shadowRootSelectors` but no valid `onEventType` are dropped.
 
 ### Rule types
 
@@ -241,19 +305,66 @@ Duplicate or invalid keys are dropped during normalization.
 
 The placeholder token is **`{{VALUE}}`**. Unknown tokens are left unchanged.
 
-Style mixin behavior: [Configuration - Style mixin](./configuration.md#style-mixin).
+Every rule uses the style mixin for document injection: [Configuration - Style mixin](./configuration.md#style-mixin). When `shadowRootSelectors` is also set, the same `css` is adopted into matching shadow roots on the selected event.
+
+## Shadow root rules
+
+**Shadow root selectors** is **additive**: the rule still injects **CSS** into the document. Matching **open** shadow roots also receive the same CSS via `ShadowRoot.adoptedStyleSheets` when **On event** runs. Closed shadow roots and missing hosts are no-ops for that selector.
+
+### Selectors (`:shadowRoot`)
+
+Each entry is an independent selector (comma-separated list in the editor; string array in JSON/TypeScript). A selector must end with `:shadowRoot` (optional space before the token: `foo :shadowRoot` ≡ `foo:shadowRoot`).
+
+| Selector                                           | Meaning                                                                                                  |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `media-host:shadowRoot`                            | Query `media-host` under the event base; adopt into that host’s `shadowRoot`                             |
+| `outer-host:shadowRoot inner-host:shadowRoot`      | Enter `outer-host`’s shadow, then find `inner-host` inside it and adopt into `inner-host`’s `shadowRoot` |
+| `:shadowRoot`                                      | Adopt into the base element’s own `shadowRoot` (no prior query)                                          |
+| `a media-host:shadowRoot, b panel-host:shadowRoot` | Two independent targets                                                                                  |
+
+Style descendants **inside** the landed shadow with the rule **CSS** (for example `.media-frame { max-height: 70vh; }`), not as a trailing query without `:shadowRoot`.
+
+### Event bases (`onEventType` / **On event**)
+
+| Value              | Editor label (short)                    | Query base                                          | Typical use                                                   |
+| ------------------ | --------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------- |
+| `contentLoaded`    | contentLoaded (document)                | `document`                                          | Shadows present once the page content is ready                |
+| `entityViewed`     | entityViewed (viewed entity)            | `entity.element` when present, otherwise `document` | Shadows under the viewed item                                 |
+| `entitiesParsed`   | entitiesParsed (each listed entity)     | each listed entity’s `element`                      | Shadows under listing entries as they are parsed              |
+| `entitiesInjected` | entitiesInjected (each injected entity) | each remaining entity’s `element` after inject      | Shadows under entities after inject (common for feed widgets) |
+| _(empty)_          | **None (page CSS only)**                | —                                                   | No shadow adoption; page CSS still runs                       |
+
+Turning a boolean rule off clears the document style and removes previously adopted shadow sheets for that rule. Changing a value on a `contentLoaded` shadow rule re-queries `document`; entity-scoped rules apply on the next matching event.
+
+### Example
+
+```ts
+{
+  type: "boolean",
+  key: "enlargeMediaWidget",
+  defaultValue: false,
+  label: "Enlarge media widget",
+  onEventType: "entitiesInjected",
+  shadowRootSelectors: ["media-host:shadowRoot"],
+  css: `
+.media-frame {
+  max-height: 70vh;
+}
+`,
+}
+```
 
 ## Stable styling hooks
 
 Super Monkey and feature modules expose stable attributes you can target from `static` or `rules`:
 
-| Attribute                 | Set by               | Values / meaning                              |
-| ------------------------- | -------------------- | --------------------------------------------- |
-| `data-sm-history`         | History              | `viewed`, `listed`, or `unread`               |
-| `data-sm-has-new-content` | History              | `"true"` when a new content selector matched  |
-| `data-sm-cm-viewed`       | Content Manager      | Space-separated group keys on view elements   |
-| `data-sm-cm-listed`       | Content Manager      | Space-separated group keys on listing entries |
-| `data-sm-cm-<group>-id`   | Content Manager      | Resolved id for a listing entry in `group`    |
+| Attribute                 | Set by               | Values / meaning                                       |
+| ------------------------- | -------------------- | ------------------------------------------------------ |
+| `data-sm-history`         | History              | `viewed`, `listed`, or `unread`                        |
+| `data-sm-has-new-content` | History              | `"true"` when a new content selector matched           |
+| `data-sm-cm-viewed`       | Content Manager      | Space-separated group keys on view elements            |
+| `data-sm-cm-listed`       | Content Manager      | Space-separated group keys on listing entries          |
+| `data-sm-cm-<group>-id`   | Content Manager      | Resolved id for a listing entry in `group`             |
 | `data-sm-rd-mapped-by`    | Resources Downloader | Mapping key that claimed the element                   |
 | `data-sm-rd-decorated-by` | Resources Downloader | Mapping key that attached a download control           |
 | `data-sm-rd-state`        | Resources Downloader | Resource item state (`pending`, `progress`, `done`, …) |
@@ -264,10 +375,10 @@ Notification Bar layout variables: `--sm-nb-offset-top`, `--sm-nb-offset-bottom`
 
 `normalizeCustomCssOpts(raw)` returns [`Normalized<CustomCssOpts>`](../utils/opts-normalization.md) (`src/supermonkey/modules/custom-css/custom-css-opts.ts`).
 
-| Outcome    | When                                                                                                                                                                                        |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Reject** | Raw opts are not an object; no non-empty `static` and no usable rules remain.                                                                                                               |
-| **Repair** | Non-string or whitespace-only `static` dropped; `rules` not an array dropped; per-rule fixes (bad `type`, empty `css`, invalid `key`, duplicate keys, empty `options`, bad `defaultValue`). |
+| Outcome    | When                                                                                                                                                                                                                                                                                   |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Reject** | Raw opts are not an object; no non-empty `static` and no usable rules remain.                                                                                                                                                                                                          |
+| **Repair** | Non-string or whitespace-only `static` dropped; `rules` not an array dropped; per-rule fixes (bad `type`, empty `css`, invalid `key`, duplicate keys, empty `options`, bad `defaultValue`, `onEventType` without `shadowRootSelectors`, shadow selectors without valid `onEventType`). |
 
 The loader constructs `CustomCss` with the cleaned `value`. Repair findings log as WARN (`Module options were repaired:`). A missing `value` logs FATAL for that instance.
 
@@ -275,6 +386,7 @@ The loader constructs `CustomCss` with the cleaned `value`. Repair findings log 
 
 - Put always-on layout and site fixes in `static`.
 - Use `rules` when the user should toggle or tune styles from the Configuration Menu.
+- Use **Shadow root selectors** + **On event** (`shadowRootSelectors` + `onEventType`) when the same rule CSS must also land inside open shadow roots (document injection still runs).
 - Keep rule `key` values unique within the instance.
 - Target History markers with `[data-sm-history="viewed"]`, `[data-sm-history="listed"]`, and `[data-sm-history="unread"]` when pairing with [History](./history.md).
 

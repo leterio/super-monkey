@@ -70,7 +70,7 @@ Full field table: [What you configure](#what-you-configure).
 
 Use the [Options shape](#options-shape) examples above in the editor, or the TypeScript wiring below for built-ins. **In the editor (Pattern A)** and **Options shape** describe the same stored `opts` object — the UI uses CSV fields where TypeScript uses `string[]`.
 
-Records every matching listing/view id in the group, marks DOM with `data-sm-history`, and injects decoration CSS when the user leaves **Decorate Entries** on.
+Records every matching listing/view id in the group, marks DOM with `data-sm-history`, and injects decoration CSS when the matching **Decorate Viewed Content** / **Decorate Listed Content** preference is on.
 
 ## TypeScript wiring
 
@@ -167,7 +167,7 @@ listedStyles: "&.book-card { outline: 2px solid yellow; }",
 
 Normalization keeps the trimmed source with `&`. Selectors missing `&` are repaired by prefixing `& ` (for example `&, foo` becomes `&, & foo`). Strings without usable top-level rules are dropped.
 
-When at least one resulting string is non-empty, History exposes **Decorate Entries** in the Configuration Menu and injects the expanded CSS (no extra wrapper).
+When `viewedStyles` is non-empty, History exposes **Decorate Viewed Content** and injects the expanded viewed CSS. When `listedStyles` is non-empty, it exposes **Decorate Listed Content** and injects the expanded listed CSS. Each toggle is independent (no extra wrapper).
 
 For styles unrelated to History markers, use [Custom CSS](./custom-css.md).
 
@@ -197,7 +197,8 @@ Shown in the Configuration Menu (end-user preferences and actions):
 
 | Control                              | Key                         | Default | Role                                                                                                                              |
 | ------------------------------------ | --------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Decorate Entries                     | `entriesDecorator`          | `true`  | Inject decoration CSS from `viewedStyles` / `listedStyles` (only when at least one is set)                                        |
+| Decorate Viewed Content              | `decorateViewedContent`     | `true`  | Inject decoration CSS from `viewedStyles` (only when set)                                                                         |
+| Decorate Listed Content              | `decorateListedContent`     | `true`  | Inject decoration CSS from `listedStyles` (only when set)                                                                         |
 | Hide Viewed Content                  | `hideViewedContent`         | `false` | Hide viewed entries (`display: none` and/or remove via `hide`)                                                                    |
 | Hide Listed Content                  | `hideListedContent`         | `false` | Hide listed entries the same way                                                                                                  |
 | Keep new content visible when hiding | `showEntriesWithNewContent` | `true`  | Keep entries marked with `data-sm-has-new-content` visible even when hide options are on (only when `newContentSelectors` is set) |

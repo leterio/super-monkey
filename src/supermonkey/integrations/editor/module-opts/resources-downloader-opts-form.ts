@@ -242,6 +242,15 @@ function mountMappingFields(
         path: `${basePath}.selectors`,
         help: "Comma-separated CSS selectors. Matched elements for this mapping.",
     });
+    ui.field(host, `${id}-page-filter`, "Page filter", ui.textInput(
+        mapping.pageFilter,
+        (value) => {
+            mapping.pageFilter = value;
+        },
+    ), {
+        path: `${basePath}.pageFilter`,
+        help: "Optional. Comma-separated mapped page names. Prefix exclusions with !!. Empty = all pages.",
+    });
     ui.field(host, `${id}-ignore-decoration`, "Ignore decoration", ui.select(
         ["false", "true"],
         mapping.ignoreDecoration,
@@ -631,6 +640,9 @@ function mappingToDraft(key: string, raw: unknown): DraftRdMapping {
     draft.selectors = Array.isArray(raw.selectors)
         ? joinCsv(raw.selectors.filter((entry): entry is string => typeof entry === "string"))
         : "";
+    draft.pageFilter = Array.isArray(raw.pageFilter)
+        ? joinCsv(raw.pageFilter.filter((entry): entry is string => typeof entry === "string"))
+        : "";
     draft.ignoreDecoration = raw.ignoreDecoration === true ? "true" : "false";
     draft.decoration = decorationToDraft(raw.decoration);
     draft.downloadMode = typeof raw.downloadMode === "string" ? raw.downloadMode : "";
@@ -718,9 +730,11 @@ function draftMappingToOpts(mapping: DraftRdMapping): Record<string, unknown> | 
         return undefined;
     }
     const decoration = draftDecorationToOpts(mapping.decoration);
+    const pageFilter = splitCsv(mapping.pageFilter);
     const base: Record<string, unknown> = {
         type: mapping.type,
         selectors,
+        ...(pageFilter.length > 0 ? { pageFilter } : {}),
         ...(mapping.ignoreDecoration === "true" ? { ignoreDecoration: true } : {}),
         ...(decoration != null ? { decoration } : {}),
     };
@@ -853,6 +867,7 @@ function emptyMapping(): DraftRdMapping {
         key: "",
         type: "leaf",
         selectors: "",
+        pageFilter: "",
         ignoreDecoration: "false",
         decoration: emptyDecoration(),
         urlSources: [emptyUrlSource()],

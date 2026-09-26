@@ -61,7 +61,7 @@ The style reapplies when:
 
 `ConfigurationMenu` is a static `Module`. After feature instances load, `ModuleLoader` constructs `{integration}::configurationMenu`.
 
-On `INTEGRATION_LOADED` it registers the Tampermonkey command `Toggle SuperMonkey configuration`. The gear [Notification Bar](./notification-bar.md) entry opens a panel that lists every loaded module with a non-empty `configurations` array (`title` / `description` as section headers). Inputs come from `buildConfigurationInput` (`src/supermonkey/modules/configuration/menu/input-builder.ts`) for boolean, number, string, string-select, and Action. `ArrayConfiguration` is not rendered.
+On `INTEGRATION_LOADED` it registers the Tampermonkey command `Toggle SuperMonkey configuration`. The gear [Notification Bar](./notification-bar.md) entry opens a panel that lists every loaded module with a non-empty `configurations` array (`title` / `description` as section headers). Value inputs come from `buildConfigurationInput` (`src/supermonkey/modules/configuration/menu/input-builder.ts`) for boolean, number, string, and string-select. Each module section ends with one row of its `Action` buttons, in `configurations` order. Button text is `opts.label`, or `key` when `label` is absent. A non-empty `opts.description` is the button `title`. `ArrayConfiguration` is not rendered.
 
 The panel subtitle is `Integration: {integration}` (first segment of the composed instance name).
 

@@ -178,11 +178,16 @@ function normalizeMapping(
         return undefined;
     }
 
+    const pageFilter = readStringList(raw.pageFilter, `${path}.pageFilter`, walk, {
+        label: "pageFilter",
+        onEmpty: "omit",
+    });
     const ignoreDecoration = raw.ignoreDecoration === true ? true : undefined;
     const decoration = normalizeDecoration(raw.decoration, `${path}.decoration`, walk);
 
     const base = {
         selectors,
+        ...(pageFilter != null ? { pageFilter } : {}),
         ...(ignoreDecoration != null ? { ignoreDecoration } : {}),
         ...(decoration != null ? { decoration } : {}),
     };
@@ -204,6 +209,7 @@ function normalizeLeafMapping(
     path: string,
     base: {
         selectors: string[];
+        pageFilter?: readonly string[];
         ignoreDecoration?: boolean;
         decoration?: ResourcesDecoration;
     },
@@ -237,6 +243,7 @@ function normalizeCollectionMapping(
     path: string,
     base: {
         selectors: string[];
+        pageFilter?: readonly string[];
         ignoreDecoration?: boolean;
         decoration?: ResourcesDecoration;
     },
