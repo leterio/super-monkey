@@ -1,4 +1,8 @@
 import { ScanMode } from "../../content-manager/metadata";
+import { CustomCssOpts } from "../../modules/custom-css/custom-css-opts";
+import { HistoryOpts } from "../../modules/history/history-opts";
+import { NotificationBarOpts } from "../../modules/notification-bar/notification-bar";
+import { ResourcesDownloaderOpts } from "../../modules/resources-downloader/resources-downloader-opts";
 import { DEFAULT_IMG_URL_SOURCES } from "../../utils/links";
 import { Integration } from "../metadata";
 
@@ -17,7 +21,28 @@ export const REDDIT_COM_INTEGRATION: Integration = {
                     {
                         name: "post",
                         selectors: ["main#main-content > shreddit-post[id]"],
-                        idSource: { source: "attribute", attributes: ["id"] },
+                        idSource: {
+                            source: "attribute",
+                            attributes: ["id"],
+                            map: [{
+                                type: "replace",
+                                regexes: ["^t[0-9]_"],
+                                replacement: "",
+                            }]
+                        },
+                    },
+                    {
+                        name: "post-media",
+                        selectors: ["shreddit-app[pagetype='cdn_media_page']"],
+                        idSource: {
+                            source: "attribute",
+                            attributes: ["href"],
+                            selectors: ["post-bottom-bar a[slot='open-app-button']"],
+                            map: [{
+                                type: "extract",
+                                regexes: ["/comments/([^/]+)/"],
+                            }]
+                        }
                     }
                 ],
                 listings: [
@@ -25,14 +50,26 @@ export const REDDIT_COM_INTEGRATION: Integration = {
                         name: "feed",
                         containerSelectors: ["shreddit-feed"],
                         entriesSelectors: ["shreddit-post[id]", "shreddit-ad-post[id]"],
-                        entryIdSource: [{ source: "attribute", attributes: ["id"] }],
+                        entryIdSource: [{
+                            source: "attribute", attributes: ["id"], map: [{
+                                type: "replace",
+                                regexes: ["^t[0-9]_"],
+                                replacement: "",
+                            }]
+                        }],
                         entryContainerSelector: ["article"],
                     },
                     {
                         name: "right-rail",
                         containerSelectors: ["pdp-right-rail ul"],
                         entriesSelectors: ["li > reddit-pdp-right-rail-post[right-rail-post-id]"],
-                        entryIdSource: [{ source: "attribute", attributes: ["right-rail-post-id"] }],
+                        entryIdSource: [{
+                            source: "attribute", attributes: ["right-rail-post-id"], map: [{
+                                type: "replace",
+                                regexes: ["^t[0-9]_"],
+                                replacement: "",
+                            }]
+                        }],
                         entryContainerSelector: ["li"],
                     },
                 ],
@@ -53,13 +90,13 @@ export const REDDIT_COM_INTEGRATION: Integration = {
                     & shreddit-post,
                     & reddit-pdp-right-rail-post > div { border-left: 0.15em solid red; }
                 `,
-            },
+            } as HistoryOpts,
         },
         customCss: {
             module: "CustomCss",
             opts: {
                 static: `
-                        :root { --sm-nb-offset-top: 3.5em; }
+                        :root { --sm-nb-offset-top: 3.5em; --sm-nb-offset-bottom: 4em; --sm-nb-z-index: 999; }
                         shreddit-feed > hr, faceplate-batch > hr { display: none !important; }
                         shreddit-feed article { border-top: 0.1em solid var(--color-neutral-border-weak); }
                         shreddit-post[data-sm-rd-decorated-by] > .sm-rd-download-btn { --sm-rd-offset-top: 1.75em; }
@@ -82,15 +119,15 @@ export const REDDIT_COM_INTEGRATION: Integration = {
                             @media (min-width: 1200px) {
                                 #subgrid-container { width: max(80%, 1120px); }
                                 .main-container { grid-template-columns: minmax(0, 100%) minmax(0, 316px) !important; }
-                                [id$='aspect-ratio'] { max-height: 70vh !important; }
+                                [id$='aspect-ratio'] { max-height: 70dvh !important; }
                             }
                             faceplate-carousel {
-                                max-height: 70vh !important;
+                                max-height: 70dvh !important;
                             }
                         `,
                     },
                 ],
-            },
+            } as CustomCssOpts,
         },
         resourcesDownloader: {
             module: "ResourcesDownloader",
@@ -104,7 +141,16 @@ export const REDDIT_COM_INTEGRATION: Integration = {
                             useImmediateParent: true,
                         },
                     },
-                    video: {
+                    mediaImage: {
+                        type: "leaf",
+                        urlSources: DEFAULT_IMG_URL_SOURCES,
+                        selectors: ["zoomable-img>img"],
+                        decoration: {
+                            wrapElement: true,
+                            overridePosition: true
+                        },
+                    },
+                    videoWithPackagedMediaJson: {
                         type: "leaf",
                         selectors: ["shreddit-player[packaged-media-json]"],
                         urlSources: [{
@@ -139,6 +185,14 @@ export const REDDIT_COM_INTEGRATION: Integration = {
                             closestSelectors: ["[slot='post-media-container']"]
                         },
                     },
+                    videoShredditPlayer: {
+                        type: "leaf",
+                        selectors: ["shreddit-player source"],
+                        urlSources: ["src"],
+                        decoration: {
+                            closestSelectors: ["[slot='post-media-container']"]
+                        },
+                    },
                     carouselImage: {
                         type: "leaf",
                         urlSources: DEFAULT_IMG_URL_SOURCES,
@@ -157,7 +211,12 @@ export const REDDIT_COM_INTEGRATION: Integration = {
                         },
                     },
                 }
-            },
+            } as ResourcesDownloaderOpts,
         },
     },
+    defaults: {
+        notificationBar: {
+            position: "bottom-right"
+        } as NotificationBarOpts,
+    }
 };
