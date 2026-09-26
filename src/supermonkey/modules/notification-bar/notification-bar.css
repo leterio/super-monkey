@@ -2,6 +2,7 @@
     --default-sm-nb-icon-size: 64px;
     --default-sm-nb-offset-top: 0px;
     --default-sm-nb-offset-bottom: 0px;
+    --default-sm-nb-z-index: 2147483645;
 }
 
 /* #region Icons/Menus container */
@@ -9,7 +10,7 @@
 #sm-nb-menus {
     position: fixed;
     display: inline-block;
-    z-index: 2147483645;
+    z-index: var(--sm-nb-z-index, var(--default-sm-nb-z-index));
     width: fit-content;
 }
 
