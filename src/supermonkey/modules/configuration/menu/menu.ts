@@ -2,17 +2,19 @@ import { GM_openInTab, GM_registerMenuCommand } from "$";
 import { DOCS_HOME_URL, SCRIPT_FULL_NAME } from "../../../constants";
 import { SuperMonkey } from "../../../supermonkey";
 import { createElement, injectElement } from "../../../utils/dom/elements";
-import { injectInputRow, injectPanel, injectSection } from "../../../utils/ui/ui-builder";
+import { injectInputRow, injectPanel, injectSection, UICSSMap } from "../../../utils/ui/ui-builder";
 import { Logger } from "../../../utils/logger";
 import { ID_SEPARATOR } from "../../../utils/string";
 import { Module, type ModuleOpts } from "../../module";
 import { NotificationEntry } from "../../notification-bar/entries/notification-entry";
+import { Action } from "../action";
 import type { Configuration } from "../configuration";
 import icon from "./application-x-executable-svgrepo-com.svg?raw";
 import css from "./configuration-menu.css?raw";
 import { buildConfigurationInput } from "./input-builder";
 
 const USERSCRIPT_MENU_COMMAND = `Toggle ${SCRIPT_FULL_NAME} configuration`;
+const ACTION_ROW_CLASS = "sm-cfg-actions";
 
 class ConfigurationMenuEntry extends NotificationEntry {
     private readonly log: Logger = new Logger("ConfigurationMenuEntry");
@@ -91,8 +93,38 @@ class ConfigurationMenuEntry extends NotificationEntry {
             subtitle: module.description,
         });
 
+        const values: Configuration[] = [];
+        const actions: Action[] = [];
+
         for (const configuration of module.configurations) {
+            if (configuration instanceof Action) {
+                actions.push(configuration);
+            } else {
+                values.push(configuration);
+            }
+        }
+
+        for (const configuration of values) {
             this.injectConfiguration(moduleSection, configuration);
+        }
+
+        if (actions.length > 0) {
+            this.injectActionRow(moduleSection, actions);
+        }
+    }
+
+    private injectActionRow(parent: HTMLElement, actions: readonly Action[]): void {
+        const row = injectSection(parent, {
+            classes: [
+                UICSSMap.ROW_CLASS,
+                ACTION_ROW_CLASS,
+            ],
+        });
+
+        for (const action of actions) {
+            const { input } = buildConfigurationInput(action);
+            input.id = action.key;
+            row.appendChild(input);
         }
     }
 

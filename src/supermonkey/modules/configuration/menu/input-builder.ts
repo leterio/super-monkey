@@ -175,10 +175,12 @@ function buildStringSelectInput(configuration: StringSelectConfiguration): Confi
 }
 
 function buildActionInput(action: Action): ConfigurationInput {
+    const description = action.opts.description;
     const input = createElement("button", {
         type: "button",
         classList: [UICSSMap.BUTTON_CLASS],
         innerText: action.opts.label ?? action.key,
+        title: description != null && description.length > 0 ? description : undefined,
     });
 
     input.addEventListener("click", () => {
