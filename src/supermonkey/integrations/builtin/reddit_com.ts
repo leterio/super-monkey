@@ -82,30 +82,33 @@ export const REDDIT_COM_INTEGRATION: Integration = {
             opts: {
                 group: "posts",
                 recordFilter: ["!!right-rail"],
-                listedStyles: `
-                    & shreddit-post,
-                    & reddit-pdp-right-rail-post > div { border-left: 0.15em solid yellow; }
-                `,
-                viewedStyles: `
-                    & shreddit-post,
-                    & reddit-pdp-right-rail-post > div { border-left: 0.15em solid red; }
-                `,
+                listedStyles: `& shreddit-post, & reddit-pdp-right-rail-post > div { border-left: 0.15em solid yellow; }`,
+                viewedStyles: `& shreddit-post, & reddit-pdp-right-rail-post > div { border-left: 0.15em solid red; }`,
             } as HistoryOpts,
         },
         customCss: {
             module: "CustomCss",
             opts: {
-                static: `
-                        :root { --sm-nb-offset-top: 3.5em; --sm-nb-offset-bottom: 4em; --sm-nb-z-index: 999; }
-                        shreddit-feed > hr, faceplate-batch > hr { display: none !important; }
-                        shreddit-feed article { border-top: 0.1em solid var(--color-neutral-border-weak); }
-                        shreddit-post[data-sm-rd-decorated-by] > .sm-rd-download-btn { --sm-rd-offset-top: 1.75em; }
-                        main > shreddit-post[data-sm-rd-decorated-by] > .sm-rd-download-btn { --sm-rd-offset-top: 4.25em; }
-                        shreddit-post[data-sm-rd-decorated-by] > [slot="title"] { width: calc(100% - 2em); }
-                        [data-sm-rd-decorated-by="video"] > .sm-rd-download-btn { --sm-rd-offset-top: 3em; }
-                        [id="shreddit-media-lightbox"] .sm-rd-download-btn { --sm-rd-offset-top: 5em; --sm-rd-offset-right: 0.5em; --sm-rd-button-size: 4.5em; }
-                        .sm-rd-download-btn { opacity: 0.25; }
-                    `,
+                static: `/* Issue fixes for Reddit */
+/* Fix issue with zoomable-img on reddit.com */
+zoomable-img > img { margin-bottom: 0; }
+zoomable-img { overflow-x: hidden; width: auto !important; position: relative !important; }
+main > zoomable-img.fixed { height: calc(100vh - 7.5rem); }
+
+/* Adjust notification bar position */
+:root { --sm-nb-offset-top: 3.5em; --sm-nb-offset-bottom: 4em; --sm-nb-z-index: 999; } 
+
+/* Hide horizontal border between hidden posts (history module) */
+shreddit-feed > hr, faceplate-batch > hr, hr + hr { display: none !important; }
+shreddit-feed article { border-top: 0.1em solid var(--color-neutral-border-weak); }
+
+/* Customizations for the resources download button (resources downloader module) */
+shreddit-post[data-sm-rd-decorated-by] > .sm-rd-download-btn { --sm-rd-offset-top: 1.75em; }
+main > shreddit-post[data-sm-rd-decorated-by] > .sm-rd-download-btn { --sm-rd-offset-top: 4.25em; }
+shreddit-post[data-sm-rd-decorated-by] > [slot="title"] { width: calc(100% - 2em); }
+[data-sm-rd-decorated-by="video"] > .sm-rd-download-btn { --sm-rd-offset-top: 3em; }
+[id="shreddit-media-lightbox"] .sm-rd-download-btn { --sm-rd-offset-top: 5em; --sm-rd-offset-right: 0.5em; --sm-rd-button-size: 4.5em; }
+.sm-rd-download-btn { opacity: 0.25; }`,
                 rules: [
                     {
                         key: "largerPostsLayout",
@@ -115,16 +118,12 @@ export const REDDIT_COM_INTEGRATION: Integration = {
                         description: "If enabled, posts use a larger layout and gallery carousels get a larger height. Recommended for larger screens.",
                         onEventType: "entitiesInjected",
                         shadowRootSelectors: ["gallery-carousel:shadowRoot"],
-                        css: `
-                            @media (min-width: 1200px) {
-                                #subgrid-container { width: max(80%, 1120px); }
-                                .main-container { grid-template-columns: minmax(0, 100%) minmax(0, 316px) !important; }
-                                [id$='aspect-ratio'] { max-height: 70dvh !important; }
-                            }
-                            faceplate-carousel {
-                                max-height: 70dvh !important;
-                            }
-                        `,
+                        css: `@media(min - width: 1200px) {
+    #subgrid - container { width: max(80 %, 1120px); }
+    .main - container { grid - template - columns: minmax(0, 100 %) minmax(0, 316px)!important; }
+    [id$ = 'aspect-ratio'] { max - height: 70dvh!important; }
+}
+faceplate - carousel { max - height: 70dvh!important; }`,
                     },
                 ],
             } as CustomCssOpts,
@@ -143,11 +142,14 @@ export const REDDIT_COM_INTEGRATION: Integration = {
                     },
                     mediaImage: {
                         type: "leaf",
-                        urlSources: DEFAULT_IMG_URL_SOURCES,
-                        selectors: ["zoomable-img>img"],
+                        urlSources: [{
+                            source: "attribute",
+                            attributes: ["src"],
+                            selectors: ["img"],
+                        }],
+                        selectors: ["main>zoomable-img"],
                         decoration: {
-                            wrapElement: true,
-                            overridePosition: true
+                            closestSelectors: ["[slot='post-media-container']"]
                         },
                     },
                     videoWithPackagedMediaJson: {
