@@ -5,6 +5,7 @@ import { SuperMonkey } from "../../supermonkey";
 import { sleep } from "../../utils/async";
 import { ItemState } from "../../utils/item-state";
 import { Logger } from "../../utils/logger";
+import { passesPageFilter } from "../../utils/page-filter";
 import { isValidId } from "../../utils/string";
 import type { Configuration } from "../configuration/configuration";
 import { NumberConfiguration } from "../configuration/impl/number";
@@ -38,6 +39,7 @@ type GroupBinderRuntime = {
     readonly contextManager: ContextManager;
     readonly pagingStrategy: PagingStrategy;
     readonly pageRequestOpts?: PageFetcherRequestOpts;
+    readonly pageFilter?: readonly string[];
     readonly pagesToLoadConfiguration: NumberConfiguration;
 };
 
@@ -103,6 +105,7 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
                         contextManager,
                         pagingStrategy,
                         pageRequestOpts: binder.pageRequestOpts,
+                        pageFilter: binder.pageFilter,
                         pagesToLoadConfiguration: new NumberConfiguration(
                             this.name,
                             `pagesToLoad_${AdditionalPages.toConfigurationGroupId(groupKey)}`,
@@ -167,12 +170,33 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
                 return;
             }
 
-            const matchingKeys = [...this.binders.keys()].filter((groupKey) =>
+            const activePages = SuperMonkey.loadedIntegration?.getActivePages() ?? [];
+            const listingKeys = [...this.binders.keys()].filter((groupKey) =>
                 contentManager.hasListingContext(sourceDocument, groupKey),
             );
 
-            if (matchingKeys.length === 0) {
+            if (listingKeys.length === 0) {
                 this.log.info("No matching Content Manager listing groups. Skipping.");
+                this.notificationIcon.state = ItemState.DONE;
+                return;
+            }
+
+            const matchingKeys = listingKeys.filter((groupKey) => {
+                const pageFilter = this.binders.get(groupKey)!.pageFilter;
+                if (passesPageFilter(pageFilter, activePages)) {
+                    return true;
+                }
+
+                this.log.info(
+                    "Group",
+                    groupKey,
+                    ": page filter does not match active pages. Skipping.",
+                );
+                return false;
+            });
+
+            if (matchingKeys.length === 0) {
+                this.log.info("No groups passed the page filter. Skipping.");
                 this.notificationIcon.state = ItemState.DONE;
                 return;
             }

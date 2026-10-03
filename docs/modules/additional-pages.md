@@ -22,7 +22,7 @@ In the [Integration editor](../integrations/editor-ui.md), set **Module key** to
 
 ## Options shape
 
-Stored and TypeScript integrations use this opts object (`module: "AdditionalPages"`). The browser editor exposes the same fields as typed controls (selector lists, URL attributes, and loaded page class names use CSV). Each group binder keeps the Content Manager group name and the context/paging type selects visible; detail fields live in foldable **Context manager**, **Paging strategy** (numbered strategies only), and **Page request** sections that start collapsed.
+Stored and TypeScript integrations use this opts object (`module: "AdditionalPages"`). The browser editor exposes the same fields as typed controls (selector lists, URL attributes, loaded page class names, and page filters use CSV). Each group binder keeps the Content Manager group name, the page filter, and the context/paging type selects visible; detail fields live in foldable **Context manager**, **Paging strategy** (numbered strategies only), and **Page request** sections that start collapsed.
 
 **Pattern A - Follow the “next” link:**
 
@@ -65,7 +65,7 @@ Stored and TypeScript integrations use this opts object (`module: "AdditionalPag
 }
 ```
 
-Each key under `groups` is the exact name of a Content Manager group. A binder runs only when that group's listing matches the current document, including its listing `pageFilter`.
+Each key under `groups` is the exact name of a Content Manager group. A binder runs only when that group's listing matches the current document (including the listing `pageFilter`) and the binder's own `pageFilter` passes. See [Page filter](#page-filter).
 
 **Two Content Manager groups:**
 
@@ -93,13 +93,13 @@ Each key under `groups` is the exact name of a Content Manager group. A binder r
 }
 ```
 
-The `items` and `offers` keys match Content Manager group names. On each mapped page, listing `pageFilter` values determine which group binders are eligible to run. How many pages to load is a per-group **user** preference in the Configuration Menu - see [Runtime configurations](#runtime-configurations). Full field tables: [What you configure](#what-you-configure).
+The `items` and `offers` keys match Content Manager group names. A binder runs when that group's listing context is active and the binder `pageFilter` passes. How many pages to load is a per-group **user** preference in the Configuration Menu - see [Runtime configurations](#runtime-configurations). Full field tables: [What you configure](#what-you-configure).
 
 ## In the editor (Pattern A)
 
 1. Confirm Content Manager already has a **listing** for each group you want to extend ([Content Manager - In the editor](./content-manager.md#in-the-editor)).
 2. In **Modules**, add an instance with **Module key** `AdditionalPages`.
-3. Under **Groups**, add a group binder and set **Content Manager group name** to the exact group key, such as `items`.
+3. Under **Groups**, add a group binder and set **Content Manager group name** to the exact group key, such as `items`. Optional **Page filter** limits that binder to mapped-page names (comma-separated; prefix exclusions with `!!`). Leave it empty to run on every page.
 4. Set **Context manager type** to `DOM paginator` and **Paging strategy type** to `Next link`.
 5. Expand **Context manager** and set **Root containers** to `.pager` and **Next selectors** to `.pager-next` (comma-separated when listing more than one), or match Pattern B from [Options shape](#options-shape) (open **Paging strategy** for numbering options when using incremental/decremental). Expand **Page request** only when you need HTTP method or headers overrides. Repeat for other groups.
 6. Save, reload on a listing page, open Configuration, and set **Pages to Load (`groupKey`)** above **`0`** for the groups you want to fetch. Each preference defaults to `0` ([Runtime configurations](#runtime-configurations)).
@@ -211,11 +211,34 @@ Each value under `groups` is a binder:
 | ----------------- | -------- | ------------------------------------------------------------------------------- |
 | `contextManager`  | yes      | Discriminated object: `type` `"dom"` or `"url"` (see below)                     |
 | `pagingStrategy`  | yes      | Discriminated object: `type` `"next-link"`, `"incremental"`, or `"decremental"` |
+| `pageFilter`      | no       | Optional mapped-page names that gate this binder. Empty or omitted runs on every page. See [Page filter](#page-filter) |
 | `pageRequestOpts` | no       | Optional HTTP overrides for this group's requests (`method`, `headers`, `sendReferer`) |
 
 Each page request sends `Referer` set to the open tab's origin, including requests for later pager pages, when `sendReferer` is omitted or `true`. `sendReferer: false` leaves that header off. A `Referer` entry in `headers` is the value sent for that group.
 
 How many pages to load and delays are **user** preferences in the Configuration Menu - see [Runtime configurations](#runtime-configurations). They are not integration opts.
+
+## Page filter
+
+Each group binder may set `pageFilter` against the integration's [mapped pages](../integrations/editor-ui.md#mapped-pages) ([TypeScript](../integrations/README.md#mapped-pages-typescript)). On each load run, Super Monkey keeps binders whose Content Manager listing matches the document, then skips any remaining binder that fails its own filter.
+
+Rules and `!!` exclusions: [Page filter](../utils/page-filter.md). Content Manager listings use the same helper — [Content Manager - Page filter](./content-manager.md#page-filter). Both filters apply: the listing `pageFilter` is part of `hasListingContext`, and the binder `pageFilter` is a second gate.
+
+```json
+{
+  "contextManager": {
+    "type": "dom",
+    "paginatorSelectors": {
+      "rootContainers": [".pager"],
+      "nextSelectors": [".pager-next"]
+    }
+  },
+  "pagingStrategy": { "type": "next-link" },
+  "pageFilter": ["catalog", "!!settings"]
+}
+```
+
+Spell mapped-page names exactly as defined under **Mapped pages**. A typo in `pageFilter` never matches, so an allowlist with an unknown name skips that binder on every URL.
 
 ## Context manager: `dom`
 
@@ -356,7 +379,7 @@ Numbered strategy fields (`"incremental"` / `"decremental"`):
 On `CONTENT_LOADED` (live tab document only), a load run:
 
 1. Reads `SuperMonkey.loadedIntegration?.contentManager`. When Content Manager is missing, the module skips fetching.
-2. Checks every binder key with `hasListingContext(document, groupKey)`. This includes the group's listing `pageFilter`, so only groups with an active listing context match.
+2. Keeps binder keys whose Content Manager listing matches the document (`hasListingContext`, including the listing `pageFilter`) and whose binder `pageFilter` passes the active mapped-page names. See [Page filter](#page-filter).
 3. Processes all matching group binders sequentially in `groups` key order. A group whose **Pages to Load (`groupKey`)** preference is `0` skips fetching.
 4. For each enabled group, resolves its pagination context, validates its strategy, and fetches each additional page. After each fetch it republishes `CONTENT_LOADED` with the fetched `Document` so Content Manager runs a full scan and remaining cards append into the live listing containers.
 
@@ -389,13 +412,14 @@ Each per-group preference displays the Content Manager group key in its label. T
 | Outcome    | When                                                                                                                                                                                                                                                                                                               |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Reject** | Raw opts are not an object; `groups` is missing or not an object; or no usable group binder remains.                                                                                                                                               |
-| **Repair** | Empty group keys and unusable binders are dropped; malformed optional fields are dropped (`ignoreLastPage`, optional selectors, `pageRequestOpts`, optional `urlTemplate` on `dom`). A binder is unusable when its required context manager / strategy pair, selectors, or numbered URL template cannot be normalized. |
+| **Repair** | Empty group keys and unusable binders are dropped; malformed optional fields are dropped (`ignoreLastPage`, optional selectors, `pageFilter`, `pageRequestOpts`, optional `urlTemplate` on `dom`). A binder is unusable when its required context manager / strategy pair, selectors, or numbered URL template cannot be normalized. |
 
 The loader constructs `AdditionalPages` with the cleaned `value`. Repair findings log as WARN (`Module options were repaired:`). A missing `value` logs FATAL for that instance.
 
 ## Authoring checklist
 
 - Name every `groups` key after the exact [Content Manager group](./content-manager.md#groups) it extends.
+- Set a binder `pageFilter` when that group should load extra pages only on some mapped pages. The listing `pageFilter` still has to match as well.
 - Wire that group's [Content Manager listings](./content-manager.md#listings) to match both the live page and the HTML of fetched pages.
 - Choose [paging shape](#pick-a-paging-shape) from how the site actually paginates (next link vs numbered URL).
 - For numbered URLs that keep filters/search in the query string, prefer `copyPageQueryParams` (default) or a `source` template built from the live path.

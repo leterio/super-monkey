@@ -31,6 +31,7 @@ const additionalPagesOptsForm: ModuleOptsForm = {
                     hydrateContext(group, rawBinder.contextManager);
                     hydratePaging(group, rawBinder.pagingStrategy);
                     hydratePageRequest(group, rawBinder.pageRequestOpts);
+                    group.pageFilter = stringListToCsv(rawBinder.pageFilter);
                 }
                 return group;
             });
@@ -95,10 +96,12 @@ const additionalPagesOptsForm: ModuleOptsForm = {
             }
 
             const pageRequestOpts = buildPageRequestOpts(group);
+            const pageFilter = splitCsv(group.pageFilter);
             groups[name] = {
                 contextManager: buildContextManager(group),
                 pagingStrategy: buildPagingStrategy(group),
                 ...(pageRequestOpts != null ? { pageRequestOpts } : {}),
+                ...(pageFilter.length > 0 ? { pageFilter } : {}),
             };
         }
         return {
@@ -163,6 +166,15 @@ function mountGroup(
         ), {
             path: base,
             help: "Required. Must match a Content Manager group name.",
+        });
+        ui.field(staging, `${id}-page-filter`, "Page filter", ui.textInput(
+            group.pageFilter,
+            (value) => {
+                group.pageFilter = value;
+            },
+        ), {
+            path: `${base}.pageFilter`,
+            help: "Optional. Comma-separated mapped page names. Prefix exclusions with !!. Empty = all pages.",
         });
         mountFields(staging, group, id, base, ui, render);
         while (staging.firstChild != null) {
@@ -749,6 +761,7 @@ function emptyGroupBinder(name = ""): DraftAdditionalPagesGroup {
         pageRequestMethod: "",
         pageRequestHeadersJson: "",
         pageRequestSendReferer: true,
+        pageFilter: "",
     };
 }
 

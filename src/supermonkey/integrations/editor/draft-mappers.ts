@@ -169,6 +169,7 @@ export type DraftAdditionalPagesBinderFields = {
     pageRequestMethod: string;
     pageRequestHeadersJson: string;
     pageRequestSendReferer: boolean;
+    pageFilter: string;
 };
 
 export type DraftAdditionalPagesOpts = {

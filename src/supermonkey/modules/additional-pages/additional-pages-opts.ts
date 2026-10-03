@@ -54,6 +54,7 @@ export type AdditionalPagesGroupBinder = {
     readonly contextManager: ContextManagerConfig;
     readonly pagingStrategy: PagingStrategyConfig;
     readonly pageRequestOpts?: PageFetcherRequestOpts;
+    readonly pageFilter?: readonly string[];
 };
 
 /** Integration opts for the Additional Pages module (`module: "AdditionalPages"`). */
@@ -99,7 +100,7 @@ export function normalizeAdditionalPagesOpts(raw: unknown): Normalized<Additiona
 
         reportUnrecognizedKeys(
             binderRaw,
-            ["contextManager", "pagingStrategy", "pageRequestOpts"],
+            ["contextManager", "pagingStrategy", "pageRequestOpts", "pageFilter"],
             groupPath,
             walk,
         );
@@ -133,11 +134,18 @@ export function normalizeAdditionalPagesOpts(raw: unknown): Normalized<Additiona
                 binderWalk,
                 `${groupPath}.pageRequestOpts`,
             );
+            const pageFilter = readStringList(
+                binderRaw.pageFilter,
+                `${groupPath}.pageFilter`,
+                binderWalk,
+                { label: "pageFilter", onEmpty: "omit" },
+            );
 
             binder = {
                 contextManager,
                 pagingStrategy,
                 ...(pageRequestOpts != null ? { pageRequestOpts } : {}),
+                ...(pageFilter != null ? { pageFilter } : {}),
             };
         }
 
