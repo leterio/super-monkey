@@ -180,7 +180,7 @@ function downloadStepKeys(mode: unknown): readonly string[] {
         return ["mode", "headers", "timeout", "sendReferer"];
     }
     if (mode === "document") {
-        return ["mode", "valueSource", "method", "headers", "data", "timeout", "sendReferer"];
+        return ["mode", "valueSource", "selectorMatch", "method", "headers", "data", "timeout", "sendReferer"];
     }
     return ["mode", "valueSource", "method", "headers", "data", "timeout", "sendReferer"];
 }
@@ -604,12 +604,28 @@ function normalizeDocumentStep(
     return {
         mode: "document",
         valueSource,
+        ...selectorMatchField(entry.selectorMatch, `${stepPath}.selectorMatch`, walk),
         ...(method != null ? { method } : {}),
         ...(headers != null ? { headers } : {}),
         ...(data != null ? { data } : {}),
         ...(timeout != null ? { timeout } : {}),
         ...sendRefererField(entry.sendReferer, `${stepPath}.sendReferer`, walk),
     };
+}
+
+function selectorMatchField(
+    raw: unknown,
+    path: string,
+    walk: OptsNormalization,
+): { selectorMatch: "priority" } | Record<string, never> {
+    if (raw == null) {
+        return {};
+    }
+    if (raw === "priority") {
+        return { selectorMatch: "priority" };
+    }
+    walk.repair(path, 'selectorMatch must be "priority"');
+    return {};
 }
 
 function hasDocumentStepSelectors(valueSource: ValueSource): boolean {

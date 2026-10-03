@@ -122,6 +122,11 @@ export type DocumentDownloadStep = {
      * Element sources need at least one `selectors` entry so values resolve inside the fetched document.
      */
     readonly valueSource: ValueSource;
+    /**
+     * `"priority"` uses the first selector that yields a URL and ignores the rest.
+     * Omitted combines every selector match.
+     */
+    readonly selectorMatch?: "priority";
     readonly method?: string;
     readonly headers?: Record<string, string>;
     readonly data?: DownloadRequestData;

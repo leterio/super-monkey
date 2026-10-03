@@ -397,7 +397,11 @@ export class DownloadOrchestrator {
                     );
 
                     const resolvedUrls = DownloadOrchestrator.dedupeUrls(
-                        resolveAllValues(step.valueSource, fetched.document)
+                        resolveAllValues(
+                            step.valueSource,
+                            fetched.document,
+                            step.selectorMatch ?? "all",
+                        )
                             .map((value) => tryNormalizeUrl(value, fetched.finalUrl))
                             .filter((url): url is string => url != null),
                     );

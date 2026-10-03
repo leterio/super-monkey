@@ -97,7 +97,7 @@ Reads the pathname of the current tab.
 
 Use `attribute` (and `map` when you must carve an id out of a longer value) when the string sits on an element attribute, including an `href`. Use `srcset` when the URL lives in a srcset or `data-*` srcset attribute.
 
-When nothing non-empty can be read, resolution yields no value (`null` at runtime). `resolveValue` uses only the first selector match. `resolveAllValues` returns every distinct match when a document step can produce multiple URLs.
+When nothing non-empty can be read, resolution yields no value (`null` at runtime). `resolveValue` uses only the first selector match. `resolveAllValues` returns every distinct match when a document step can produce multiple URLs. Its optional `selectorMatch` argument `"priority"` returns values from the first selector that yields one; omitted and `"all"` combine every selector.
 
 ## Sources
 

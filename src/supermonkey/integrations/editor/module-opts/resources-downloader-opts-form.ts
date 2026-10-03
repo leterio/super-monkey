@@ -579,6 +579,17 @@ function mountDownloadStep(
                 omitMapSteps: true,
                 pathPrefix: `${base}.valueSource`,
             });
+            ui.field(staging, `${id}-selector-match`, "Selector match", ui.select(
+                ["all", "priority"],
+                step.selectorMatch,
+                (value) => {
+                    step.selectorMatch = value as DraftRdDownloadStep["selectorMatch"];
+                },
+                { all: "All selectors", priority: "First selector with a value" },
+            ), {
+                path: `${base}.selectorMatch`,
+                help: "All selectors combine every match. First selector with a value uses that selector's URLs and skips the rest.",
+            });
             ui.field(staging, `${id}-method`, "Method", ui.textInput(step.method, (value) => {
                 step.method = value;
             }), {
@@ -716,6 +727,9 @@ function downloadStepToDraft(raw: unknown): DraftRdDownloadStep | undefined {
     if (mode === "document" && isPlainObject(raw.valueSource)) {
         step.valueSource = valueSourceToDraft(raw.valueSource as ValueSource);
     }
+    if (mode === "document" && raw.selectorMatch === "priority") {
+        step.selectorMatch = "priority";
+    }
     step.method = typeof raw.method === "string" ? raw.method : "";
     step.timeout = typeof raw.timeout === "number" && Number.isFinite(raw.timeout)
         ? String(raw.timeout)
@@ -822,6 +836,7 @@ function draftDownloadStepToOpts(step: DraftRdDownloadStep): Record<string, unkn
     return {
         mode: "document",
         valueSource: draftToValueSource(step.valueSource),
+        ...(step.selectorMatch === "priority" ? { selectorMatch: "priority" as const } : {}),
         ...(method.length > 0 ? { method } : {}),
         ...(headers != null ? { headers } : {}),
         ...(data != null ? { data } : {}),
@@ -914,6 +929,7 @@ function emptyDownloadStep(mode: "document" | "download"): DraftRdDownloadStep {
     return {
         mode,
         valueSource: emptyValueSource(),
+        selectorMatch: "all",
         method: "",
         headersJson: "",
         dataJson: "",

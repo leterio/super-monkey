@@ -207,6 +207,7 @@ export type DraftRdMapping = {
 export type DraftRdDownloadStep = {
     mode: "document" | "download";
     valueSource: DraftValueSource;
+    selectorMatch: "all" | "priority";
     method: string;
     headersJson: string;
     dataJson: string;

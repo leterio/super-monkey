@@ -247,10 +247,11 @@ Named pipelines in `downloadModes`. Leaf `downloadMode` selects which pipeline r
 | `name`  | Unique mode id (**must not** collide with `"download"`)     |
 | `steps` | Non-empty list of document steps, ending in a download step |
 
-**Document step** - `{ mode: "document", valueSource, method?, headers?, data?, timeout?, sendReferer? }`
+**Document step** - `{ mode: "document", valueSource, selectorMatch?, method?, headers?, data?, timeout?, sendReferer? }`
 
 - Fetches an intermediate page (`GM_xmlhttpRequest`), parses HTML, resolves `valueSource` against that document.
 - `valueSource` must be an **element** source (`attribute`, `text`, or `srcset`) with at least one `selectors` entry. `query-param` and `path` are rejected for document steps.
+- Omitted `selectorMatch` combines distinct values from every selector. `selectorMatch: "priority"` walks `valueSource.selectors` in order and keeps every distinct value from the first selector that yields one. A selector whose matches yield no value is skipped, and the next entry is tried. Each array entry is one query; a comma inside a single entry remains one CSS selector list.
 - Relative URLs resolve against the fetched document’s final URL.
 - Step `data` fields that are ValueSource objects resolve against the **live leaf** element before the request.
 - When `sendReferer` is omitted or `true`, sends `Referer` set to the origin of the previous page. The first document step takes that origin from the open tab. A later document step takes it from the final URL of the previous document response. `sendReferer: false` leaves that header off. A `Referer` entry in `headers` is the value sent for that step.
@@ -348,7 +349,7 @@ Notification Bar: a `ProgressMenuEntry` exposes download progress plus **Downloa
 | Outcome    | When                                                                                                                                                                                                                                                                              |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Reject** | Raw opts are not an object; `mappings` missing/empty; no usable user mappings remain; no scannable **user entry points** (builtins alone are not enough).                                                                                                                         |
-| **Repair** | Bad mappings or download modes dropped; empty selectors / urlSources / children / `pageFilter` fixed or dropped; unknown `downloadMode` drops the leaf; cycles and dangling collection children removed; user keys identical to a built-in mapping removed; mid-pipeline `download` steps drop the mode; missing final `download` step is appended; a non-boolean `sendReferer` is dropped. |
+| **Repair** | Bad mappings or download modes dropped; empty selectors / urlSources / children / `pageFilter` fixed or dropped; unknown `downloadMode` drops the leaf; cycles and dangling collection children removed; user keys identical to a built-in mapping removed; mid-pipeline `download` steps drop the mode; missing final `download` step is appended; a non-boolean `sendReferer` is dropped; a `selectorMatch` other than `"priority"` is dropped. |
 
 The loader constructs `ResourcesDownloader` with the cleaned `value`. Repair findings log as WARN (`Module options were repaired:`). A missing `value` logs FATAL for that instance.
 

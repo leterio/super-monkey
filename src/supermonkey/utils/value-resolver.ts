@@ -98,10 +98,12 @@ export function resolveValue(
 /**
  * Resolves every distinct non-empty value from `valueSource` under `base`.
  * URL sources return at most one value from the tab location.
+ * `selectorMatch` `"priority"` returns values from the first selector that yields one; omitted and `"all"` combine every selector.
  */
 export function resolveAllValues(
     valueSource: ValueSource | null | undefined,
     base?: QueryableBaseElement | Document | null,
+    selectorMatch: "all" | "priority" = "all",
 ): string[] {
     if (valueSource == null) {
         return [];
@@ -112,19 +114,21 @@ export function resolveAllValues(
         return value == null ? [] : [value];
     }
 
-    const values: string[] = [];
-    const seen = new Set<string>();
-
-    for (const element of resolveElementTargets(valueSource, base)) {
-        const value = resolveFromElement(valueSource, element)?.trim();
-        if (value == null || value.length === 0 || seen.has(value)) {
-            continue;
+    const selectors = valueSource.selectors;
+    if (selectorMatch === "priority" && selectors != null && selectors.length > 0) {
+        for (const selector of selectors) {
+            const values = collectDistinctValues(
+                valueSource,
+                queryAll(selector, base ?? undefined),
+            );
+            if (values.length > 0) {
+                return values;
+            }
         }
-        seen.add(value);
-        values.push(value);
+        return [];
     }
 
-    return values;
+    return collectDistinctValues(valueSource, resolveElementTargets(valueSource, base));
 }
 
 function resolveUrlSource(valueSource: UrlValueSource): string | null {
@@ -151,6 +155,22 @@ function resolveUrlSource(valueSource: UrlValueSource): string | null {
     }
 
     return applyValueMappers(raw, valueSource.map ?? []);
+}
+
+function collectDistinctValues(valueSource: ElementValueSource, elements: HTMLElement[]): string[] {
+    const values: string[] = [];
+    const seen = new Set<string>();
+
+    for (const element of elements) {
+        const value = resolveFromElement(valueSource, element)?.trim();
+        if (value == null || value.length === 0 || seen.has(value)) {
+            continue;
+        }
+        seen.add(value);
+        values.push(value);
+    }
+
+    return values;
 }
 
 function resolveElementTargets(
