@@ -249,7 +249,7 @@ Use when the page shows a pager you can select in the DOM.
 | `type`               | yes      | `"dom"`                                                                                                                             |
 | `paginatorSelectors` | yes      | Selector map for pager roots and controls (table below)                                                                             |
 | `urlTemplate`        | no\*     | Pattern with `{{NUMBER}}`, a query-param value source whose `key` is the page parameter, or a `pathSuffix`                          |
-| `ignoreLastPage`     | no       | When `true`, leaves `totalPages` unset even if page-index links are visible (use when the pager does not expose the real last page) |
+| `ignoreLastPage`     | no       | When `true`, numbered strategies build the configured page count even when page indexes are missing, empty, or do not show the real last page. When omitted or `false`, those strategies fetch further pages only when page-index numbers resolve a last page |
 
 \* Required when `pagingStrategy` is `"incremental"` or `"decremental"`.
 
@@ -367,6 +367,8 @@ Value source details: [Value source](../utils/value-source.md).
 | `"incremental"` | Builds URLs with page numbers increasing from the current page via `urlTemplate`                                            |
 | `"decremental"` | Same as incremental with next/previous numbering swapped                                                                    |
 
+With a DOM context manager, incremental and decremental strategies fetch further pages only when page-index numbers resolve a last page, unless `ignoreLastPage` is `true`. A URL context manager has no pager, so those strategies still build the configured page count from the URL template.
+
 Numbered strategy fields (`"incremental"` / `"decremental"`):
 
 | Field                          | Default       | What you set                                           |
@@ -425,7 +427,7 @@ The loader constructs `AdditionalPages` with the cleaned `value`. Repair finding
 - For numbered URLs that keep filters/search in the query string, prefer `copyPageQueryParams` (default) or a `source` template built from the live path.
 - For a page number in a trailing path suffix, set `pathSuffix` to that suffix, such as `/page/{{NUMBER}}`.
 - For a page query parameter, set `urlTemplate.source` to `{ source: "query-param", key: "<param>" }`. Fetched URLs keep the tab pathname and write the page number to that key after any copied query params.
-- Set `ignoreLastPage: true` when visible page indexes are incomplete or misleading.
+- Set `ignoreLastPage: true` when visible page indexes are incomplete or misleading, or when the pager is absent and numbered strategies should still fetch the configured page count.
 - Use `pageIndexDecoration` when status/classes should sit on an ancestor of the page-index match (for example match `a` and decorate `li`), including `loadedPageClassNames` for the site’s loaded-page look.
 - Leave each group's **Pages to Load (`groupKey`)** preference for the user; default `0` means that group does not load additional pages.
 

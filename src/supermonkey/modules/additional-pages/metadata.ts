@@ -57,6 +57,7 @@ export type PaginationContext = {
     /** Snapshot from `resolveUrlTemplate`; required by numbered strategies. */
     readonly resolvedUrlTemplate?: ResolvedUrlTemplate;
     readonly totalPages?: number;
+    readonly unboundedPaging?: boolean;
     readonly rootPage: Page;
     cursor: Page;
     readonly paginators: PaginatorRefs[];

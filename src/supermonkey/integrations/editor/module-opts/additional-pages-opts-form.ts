@@ -357,7 +357,7 @@ function mountContextManagerFields(
             },
         ), {
             path: `${contextPath}.ignoreLastPage`,
-            help: "When checked, skips treating the last paginator control as a loadable page.",
+            help: "When checked, numbered strategies keep requesting the configured page count without a known last page. When unchecked, a missing pager or page indexes with no numbers stops further fetches.",
         });
     }
 
