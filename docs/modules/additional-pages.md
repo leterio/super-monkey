@@ -225,7 +225,7 @@ Use when the page shows a pager you can select in the DOM.
 | -------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `type`               | yes      | `"dom"`                                                                                                                             |
 | `paginatorSelectors` | yes      | Selector map for pager roots and controls (table below)                                                                             |
-| `urlTemplate`        | no\*     | Pattern with `{{NUMBER}}`, or a query-param value source whose `key` is the page parameter                                          |
+| `urlTemplate`        | no\*     | Pattern with `{{NUMBER}}`, a query-param value source whose `key` is the page parameter, or a `pathSuffix`                          |
 | `ignoreLastPage`     | no       | When `true`, leaves `totalPages` unset even if page-index links are visible (use when the pager does not expose the real last page) |
 
 \* Required when `pagingStrategy` is `"incremental"` or `"decremental"`.
@@ -263,29 +263,30 @@ Use when the current page number comes only from the tab URL (no pager DOM to bi
 | Field         | Required | What you set                                                    |
 | ------------- | -------- | --------------------------------------------------------------- |
 | `type`        | yes      | `"url"`                                                         |
-| `urlTemplate` | yes      | Pattern with `{{NUMBER}}`, or a query-param value source whose `key` is the page parameter (see [URL templates](#url-templates)) |
+| `urlTemplate` | yes      | Pattern with `{{NUMBER}}`, a query-param value source whose `key` is the page parameter, or a `pathSuffix` (see [URL templates](#url-templates)) |
 
 Pair with `"incremental"` or `"decremental"`. There is no DOM pager update.
 
 ## URL templates
 
-Numbered strategies build each fetch URL from a template that contains `{{NUMBER}}`, or from a query-param value source. `"next-link"` ignores `urlTemplate` when composing URLs (it follows the next control).
+Numbered strategies build each fetch URL from a template that contains `{{NUMBER}}`, from a query-param value source, or from a path suffix. `"next-link"` ignores `urlTemplate` when composing URLs (it follows the next control).
 
-`urlTemplate` is a **string** or an **object**. An object must define **exactly one** of `template` or `source`.
+`urlTemplate` is a **string** or an **object**. An object must define **exactly one** of `template`, `source`, or `pathSuffix`.
 
-In the browser editor, choose **URL template kind** `Static template` (string / `{ template }`) or `Value source` (same Value Source controls as Content Manager), plus **Copy page query params**.
+In the browser editor, choose **URL template kind** `Static template` (string / `{ template }`), `Value source` (same Value Source controls as Content Manager), or `Path suffix`, plus **Copy page query params**.
 
 | Form          | Example                                                            | Notes                                                                                                                                          |
 | ------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | String        | `"/page/{{NUMBER}}"`                                               | Same as `{ template: " ...", copyPageQueryParams: true }`                                                                                      |
 | Static object | `{ template: "/page/{{NUMBER}}/", copyPageQueryParams?: boolean }` | `template` must include `{{NUMBER}}` and be a path starting with `/` or an absolute `http://` / `https://` URL                                 |
 | Source object | `{ source: ValueSource, copyPageQueryParams?: boolean }`           | A `query-param` source uses `key` as the page parameter. Any other source resolves against the live document/tab to a string with `{{NUMBER}}` |
+| Path suffix   | `{ pathSuffix: "/page/{{NUMBER}}", copyPageQueryParams?: boolean }` | Appends the suffix to the tab pathname after removing one trailing match of that suffix                                                       |
 
 | Field                 | Default | What it does                                                                              |
 | --------------------- | ------- | ----------------------------------------------------------------------------------------- |
 | `copyPageQueryParams` | `true`  | When context resolves, copies the current tab’s query string onto every numbered page URL |
 
-Resolution runs once when the module builds pagination context. When the template contains `{{NUMBER}}`, numbered strategies substitute it and then merge the snapshotted query. When the source is `query-param`, they keep the tab pathname, merge the snapshotted query, and set `key` to the page being fetched.
+Resolution runs once when the module builds pagination context. When the template contains `{{NUMBER}}`, numbered strategies substitute it and then merge the snapshotted query. When the source is `query-param`, they keep the tab pathname, merge the snapshotted query, and set `key` to the page being fetched. A `pathSuffix` resolves to a `{{NUMBER}}` template from the tab pathname before that substitution.
 
 **Page query parameter (`page`):**
 
@@ -299,6 +300,23 @@ urlTemplate: {
 ```
 
 On `/list?q=cats&page=2`, the next page URL is `/list?q=cats&page=3`. The pathname stays `/list`. Copied params such as `q` stay, and `page` is the fetched page number. When `page` is absent, the current page number is the strategy fallback (`1`, or `0` when numbering starts at zero).
+
+**Path suffix (`/page/{{NUMBER}}`):**
+
+```ts
+urlTemplate: {
+  pathSuffix: "/page/{{NUMBER}}",
+  copyPageQueryParams: true,
+}
+```
+
+| Pathname          | Resolved template          | Page read |
+| ----------------- | -------------------------- | --------- |
+| `/`               | `/page/{{NUMBER}}`         | fallback  |
+| `/catalog/`       | `/catalog/page/{{NUMBER}}` | fallback  |
+| `/catalog/page/2` | `/catalog/page/{{NUMBER}}` | `2`       |
+
+On `/catalog/page/2?q=cats`, the next page URL is `/catalog/page/3?q=cats`. The suffix is trailing: `/catalog/page/2/extra` keeps that path and appends the suffix.
 
 **Keep search params (common on search result pages):**
 
@@ -381,6 +399,7 @@ The loader constructs `AdditionalPages` with the cleaned `value`. Repair finding
 - Wire that group's [Content Manager listings](./content-manager.md#listings) to match both the live page and the HTML of fetched pages.
 - Choose [paging shape](#pick-a-paging-shape) from how the site actually paginates (next link vs numbered URL).
 - For numbered URLs that keep filters/search in the query string, prefer `copyPageQueryParams` (default) or a `source` template built from the live path.
+- For a page number in a trailing path suffix, set `pathSuffix` to that suffix, such as `/page/{{NUMBER}}`.
 - For a page query parameter, set `urlTemplate.source` to `{ source: "query-param", key: "<param>" }`. Fetched URLs keep the tab pathname and write the page number to that key after any copied query params.
 - Set `ignoreLastPage: true` when visible page indexes are incomplete or misleading.
 - Use `pageIndexDecoration` when status/classes should sit on an ancestor of the page-index match (for example match `a` and decorate `li`), including `loadedPageClassNames` for the site’s loaded-page look.

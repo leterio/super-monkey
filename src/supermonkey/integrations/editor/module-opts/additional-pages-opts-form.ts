@@ -351,17 +351,17 @@ function mountContextManagerFields(
 
     if (draft.pagingType !== "next-link" || draft.contextType === "url") {
         ui.field(host, `${id}-url-kind`, "URL template kind", ui.select(
-            ["static", "source"],
+            ["static", "source", "path-suffix"],
             draft.urlTemplateKind,
             (value) => {
                 draft.urlTemplateKind =
                     value as DraftAdditionalPagesBinderFields["urlTemplateKind"];
                 rerender();
             },
-            { static: "Static template", source: "Value source" },
+            { static: "Static template", source: "Value source", "path-suffix": "Path suffix" },
         ), {
             path: urlTemplatePath,
-            help: "Static path/URL with {{NUMBER}}, or a value source. A query-param source uses its key as the page parameter.",
+            help: "Static path/URL with {{NUMBER}}, a value source, or a path suffix. A query-param source uses its key as the page parameter.",
         });
 
         if (draft.urlTemplateKind === "static") {
@@ -373,6 +373,16 @@ function mountContextManagerFields(
             ), {
                 path: urlTemplatePath,
                 help: "Path or absolute URL containing {{NUMBER}}.",
+            });
+        } else if (draft.urlTemplateKind === "path-suffix") {
+            ui.field(host, `${id}-path-suffix`, "Path suffix", ui.textInput(
+                draft.urlTemplate,
+                (value) => {
+                    draft.urlTemplate = value;
+                },
+            ), {
+                path: `${urlTemplatePath}.pathSuffix`,
+                help: "Suffix appended to the tab pathname. Starts with / and contains {{NUMBER}}. Example: /page/{{NUMBER}}.",
             });
         } else {
             const sourceSection = injectSection(host, {
@@ -520,6 +530,12 @@ function hydrateUrlTemplate(draft: DraftAdditionalPagesBinderFields, raw: unknow
         return;
     }
     draft.copyPageQueryParams = raw.copyPageQueryParams !== false;
+    if (typeof raw.pathSuffix === "string") {
+        draft.urlTemplateKind = "path-suffix";
+        draft.urlTemplate = raw.pathSuffix;
+        draft.urlTemplateSource = emptyValueSource();
+        return;
+    }
     if (typeof raw.template === "string") {
         draft.urlTemplateKind = "static";
         draft.urlTemplate = raw.template;
@@ -624,6 +640,17 @@ function buildUrlTemplate(draft: DraftAdditionalPagesBinderFields): unknown {
     if (draft.urlTemplateKind === "source") {
         return {
             source: draftToValueSource(draft.urlTemplateSource),
+            copyPageQueryParams,
+        };
+    }
+
+    if (draft.urlTemplateKind === "path-suffix") {
+        const pathSuffix = draft.urlTemplate.trim();
+        if (pathSuffix.length === 0) {
+            return undefined;
+        }
+        return {
+            pathSuffix,
             copyPageQueryParams,
         };
     }

@@ -151,7 +151,7 @@ export type DraftAdditionalPagesBinderFields = {
     contextType: "dom" | "url";
     pagingType: "next-link" | "incremental" | "decremental";
     ignoreLastPage: boolean;
-    urlTemplateKind: "static" | "source";
+    urlTemplateKind: "static" | "source" | "path-suffix";
     urlTemplate: string;
     urlTemplateSource: DraftValueSource;
     copyPageQueryParams: boolean;

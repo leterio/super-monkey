@@ -21,8 +21,22 @@ export type UrlTemplateSourceConfig = {
     readonly copyPageQueryParams?: boolean;
 };
 
-/** Object form: exactly one of `template` or `source`. */
-export type UrlTemplateConfig = UrlTemplateStaticConfig | UrlTemplateSourceConfig;
+/**
+ * Appends a path suffix that contains `{{NUMBER}}` to the tab pathname.
+ * A trailing page suffix already on the pathname is removed before the append.
+ */
+export type UrlTemplatePathSuffixConfig = {
+    /** Path fragment starting with `/` and containing `{{NUMBER}}`, such as `/page/{{NUMBER}}`. */
+    readonly pathSuffix: string;
+    /** When not `false`, copies the current tab query string onto built page URLs (default `true`). */
+    readonly copyPageQueryParams?: boolean;
+};
+
+/** Object form: exactly one of `template`, `source`, or `pathSuffix`. */
+export type UrlTemplateConfig =
+    | UrlTemplateStaticConfig
+    | UrlTemplateSourceConfig
+    | UrlTemplatePathSuffixConfig;
 
 /** Authoring shape: string shorthand or object config. */
 export type UrlTemplate = string | UrlTemplateConfig;
@@ -98,6 +112,7 @@ export function normalizeUrlTemplate(input: UrlTemplate): UrlTemplateConfig {
 /**
  * Resolves authoring config to a path/absolute template and optional query snapshot.
  * A `query-param` source keeps the tab pathname and records `key` as `pageQueryParam`.
+ * A `pathSuffix` builds a `{{NUMBER}}` template from the tab pathname.
  * Any other source resolves to a string that includes `{{NUMBER}}`.
  * Uses `document` (or `base`) when resolving a ValueSource.
  */
@@ -111,6 +126,15 @@ export function resolveUrlTemplate(
 
     const config = normalizeUrlTemplate(input);
     const queryParams = snapshotQueryParams(config.copyPageQueryParams !== false);
+
+    if ("pathSuffix" in config) {
+        const template = resolvePathSuffixTemplate(window.location.pathname, config.pathSuffix.trim());
+        if (template == null || template.length === 0 || !hasPageNumberPlaceholder(template)) {
+            return null;
+        }
+
+        return { template, queryParams };
+    }
 
     if ("source" in config && config.source.source === "query-param") {
         const pageQueryParam = config.source.key.trim();
@@ -130,7 +154,7 @@ export function resolveUrlTemplate(
     if ("template" in config) {
         const value = config.template.trim();
         template = value.length > 0 ? value : null;
-    } else {
+    } else if ("source" in config) {
         template = resolveValue(config.source, base ?? document);
     }
 
@@ -139,6 +163,40 @@ export function resolveUrlTemplate(
     }
 
     return { template, queryParams };
+}
+
+/**
+ * Builds a `{{NUMBER}}` path from `pathname` and `suffix`.
+ * Removes one trailing match of `suffix` and a leftover trailing slash, then appends `suffix`.
+ * `/` and an empty base resolve to `suffix` itself.
+ */
+function resolvePathSuffixTemplate(pathname: string, suffix: string): string | null {
+    const placeholder = resolvePlaceholder(suffix);
+    if (placeholder == null || !suffix.startsWith("/")) {
+        return null;
+    }
+
+    const matchBody = suffix.endsWith("/") ? suffix.slice(0, -1) : suffix;
+    if (resolvePlaceholder(matchBody) == null) {
+        return null;
+    }
+
+    const pattern = matchBody
+        .split(placeholder)
+        .map(escapeRegExp)
+        .join("(\\d+)");
+    const stripped = pathname.replace(new RegExp(`${pattern}/?$`), "");
+
+    let base = stripped;
+    if (base.length > 1 && base.endsWith("/")) {
+        base = base.replace(/\/+$/, "");
+    }
+
+    if (base === "" || base === "/") {
+        return suffix;
+    }
+
+    return `${base}${suffix}`;
 }
 
 function snapshotQueryParams(enabled: boolean): Record<string, string> {

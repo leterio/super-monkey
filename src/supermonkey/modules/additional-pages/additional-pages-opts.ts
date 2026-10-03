@@ -544,6 +544,14 @@ function validateContextAndStrategyPair(
         return false;
     }
 
+    if ("pathSuffix" in urlTemplate && !hasPageNumberPlaceholder(urlTemplate.pathSuffix)) {
+        walk.repair(
+            `${contextManagerPathPrefix}.urlTemplate.pathSuffix`,
+            `required with ${NUMBERS_PLACEHOLDER} when pagingStrategy.type is "${pagingStrategy.type}"`,
+        );
+        return false;
+    }
+
     return true;
 }
 
@@ -633,13 +641,15 @@ function readUrlTemplate(
         return undefined;
     }
 
-    reportUnrecognizedKeys(raw, ["template", "source", "copyPageQueryParams"], path, walk);
+    reportUnrecognizedKeys(raw, ["template", "source", "pathSuffix", "copyPageQueryParams"], path, walk);
 
     const hasTemplate = raw.template != null;
     const hasSource = raw.source != null;
+    const hasPathSuffix = raw.pathSuffix != null;
+    const selectedCount = Number(hasTemplate) + Number(hasSource) + Number(hasPathSuffix);
 
-    if (hasTemplate === hasSource) {
-        const message = "must define exactly one of template or source";
+    if (selectedCount !== 1) {
+        const message = "must define exactly one of template, source, or pathSuffix";
         if (options.required) {
             walk.reject(path, message);
         } else {
@@ -667,6 +677,23 @@ function readUrlTemplate(
 
         return {
             template,
+            copyPageQueryParams,
+        };
+    }
+
+    if (hasPathSuffix) {
+        const pathSuffix = readPathSuffix(
+            raw.pathSuffix,
+            `${path}.pathSuffix`,
+            walk,
+            options,
+        );
+        if (pathSuffix == null) {
+            return undefined;
+        }
+
+        return {
+            pathSuffix,
             copyPageQueryParams,
         };
     }
@@ -727,6 +754,44 @@ function readStaticUrlTemplateString(
     }
 
     return urlTemplate;
+}
+
+function readPathSuffix(
+    raw: unknown,
+    path: string,
+    walk: OptsNormalization,
+    options: { required: boolean },
+): string | undefined {
+    if (typeof raw !== "string" || raw.trim().length === 0) {
+        if (options.required) {
+            walk.reject(path, "must be a non-empty string");
+        } else {
+            walk.repair(path, "must be a non-empty string");
+        }
+        return undefined;
+    }
+
+    const pathSuffix = raw.trim();
+
+    if (!hasPageNumberPlaceholder(pathSuffix)) {
+        if (options.required) {
+            walk.reject(path, `must include ${NUMBERS_PLACEHOLDER}`);
+        } else {
+            walk.repair(path, `must include ${NUMBERS_PLACEHOLDER}`);
+        }
+        return undefined;
+    }
+
+    if (!pathSuffix.startsWith("/")) {
+        if (options.required) {
+            walk.reject(path, "must be a path starting with '/'");
+        } else {
+            walk.repair(path, "must be a path starting with '/'");
+        }
+        return undefined;
+    }
+
+    return pathSuffix;
 }
 
 function readCopyPageQueryParams(
