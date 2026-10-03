@@ -1,3 +1,4 @@
+import { unsafeWindow } from "$";
 import { EventBus } from "../event-bus/event-bus";
 import { Component } from "../lifecycle/component";
 import {
@@ -32,12 +33,18 @@ import {
 /**
  * Maps the live page into content groups and ids, and publishes parse/inject/view events.
  * Owns {@link LifecycleAwareEvent.CONTENT_LOADED}: publishes it after integration load and scans on each emission.
+ * With `onload`, a same-document URL change scans the live tab document again, including URL-only views.
+ * With `interval`, that timer notices the URL instead; the location watcher stays off.
  */
 export class ContentManager extends Component {
     private static readonly SCAN_WARN_THRESHOLD_MS = 100;
+    private static readonly HISTORY_HOOK: unique symbol = Symbol("smHistoryHook");
 
     private readonly viewedEntityKeys = new Set<string>();
     private intervalStarted = false;
+    private locationWatchStarted = false;
+    private lastLocationHref = "";
+    private locationScanTimer = 0;
     private listingBatchCounts = new Map<string, number>();
 
     constructor(private readonly opts: ContentManagerOpts) {
@@ -66,6 +73,9 @@ export class ContentManager extends Component {
         await this.scanViews(doc, false, activePages);
         await this.scanListings(doc, activePages);
         this.startIntervalScansIfNeeded();
+        if (doc === document) {
+            this.startLocationWatchIfNeeded();
+        }
     }
 
     hasListingContext(sourceDocument: Document, groupKey?: string): boolean {
@@ -205,10 +215,6 @@ export class ContentManager extends Component {
         const entities: Entity[] = [];
 
         for (const element of queryAll(selectors, sourceDocument)) {
-            if (ContentManager.isViewed(element, groupKey)) {
-                continue;
-            }
-
             const id = ContentManager.resolveEntityId(view.idSource, element);
             if (id == null) {
                 continue;
@@ -257,10 +263,6 @@ export class ContentManager extends Component {
             }
         }
         return null;
-    }
-
-    private static isViewed(element: HTMLElement, groupKey: string): boolean {
-        return ContentManager.hasMarker(element, ContentManagerMarkers.VIEWED, groupKey);
     }
 
     private static markViewed(element: HTMLElement, groupKey: string): void {
@@ -623,6 +625,116 @@ export class ContentManager extends Component {
         return null;
     }
 
+    private startLocationWatchIfNeeded(): void {
+        if (this.intervalStarted || this.locationWatchStarted) {
+            return;
+        }
+
+        this.startLocationWatch();
+    }
+
+    private startLocationWatch(): void {
+        if (this.locationWatchStarted) {
+            return;
+        }
+
+        this.locationWatchStarted = true;
+        this.lastLocationHref = window.location.href;
+
+        const onChange = () => {
+            this.scheduleLocationScan();
+        };
+
+        unsafeWindow.addEventListener("popstate", onChange);
+        unsafeWindow.addEventListener("hashchange", onChange);
+        ContentManager.hookPageHistory(onChange, this.log);
+        this.log.debug("Watching same-document location changes");
+    }
+
+    private scheduleLocationScan(): void {
+        window.clearTimeout(this.locationScanTimer);
+        this.locationScanTimer = window.setTimeout(() => {
+            void this.scanAfterLocationChange();
+        }, 0);
+    }
+
+    private async scanAfterLocationChange(): Promise<void> {
+        const href = window.location.href;
+        if (href === this.lastLocationHref) {
+            return;
+        }
+
+        this.lastLocationHref = href;
+        this.log.debug("Location changed; scanning live document");
+        const activePages = ContentManager.resolveActivePages();
+        await this.scanViews(document, false, activePages);
+        await this.scanListings(document, activePages);
+
+        if (window.location.href !== this.lastLocationHref) {
+            this.scheduleLocationScan();
+        }
+    }
+
+    private static hookPageHistory(onChange: () => void, log: Logger): void {
+        const history = unsafeWindow.history;
+        const prototype = unsafeWindow.History?.prototype ?? null;
+        ContentManager.hookHistoryMethod(history, prototype, "pushState", onChange, log);
+        ContentManager.hookHistoryMethod(history, prototype, "replaceState", onChange, log);
+    }
+
+    private static hookHistoryMethod(
+        history: History,
+        prototype: History | null,
+        method: "pushState" | "replaceState",
+        onChange: () => void,
+        log: Logger,
+    ): void {
+        type HookedHistoryMethod = History["pushState"] & { [ContentManager.HISTORY_HOOK]?: true };
+
+        const wrap = (original: History["pushState"]): History["pushState"] => {
+            const hooked = original as HookedHistoryMethod;
+            if (hooked[ContentManager.HISTORY_HOOK] === true) {
+                return original;
+            }
+
+            const wrapped: HookedHistoryMethod = function (
+                this: History,
+                ...args: Parameters<History["pushState"]>
+            ): ReturnType<History["pushState"]> {
+                const before = location.href;
+                const result = original.apply(this, args);
+                if (location.href !== before) {
+                    try {
+                        onChange();
+                    } catch (error) {
+                        log.error("Location change listener failed", error);
+                    }
+                }
+                return result;
+            };
+
+            wrapped[ContentManager.HISTORY_HOOK] = true;
+            return wrapped;
+        };
+
+        if (prototype != null) {
+            try {
+                prototype[method] = wrap(prototype[method]);
+            } catch (error) {
+                log.error(`Failed to hook History.prototype.${method}`, error);
+            }
+        }
+
+        const own = Object.getOwnPropertyDescriptor(history, method);
+        if (own?.writable === true && typeof own.value === "function") {
+            try {
+                history[method] = wrap(own.value as History["pushState"]);
+            } catch (error) {
+                log.error(`Failed to hook history.${method}`, error);
+            }
+        }
+    }
+
     private startIntervalScansIfNeeded(): void {
         if (this.intervalStarted) {
             return;
@@ -638,6 +750,7 @@ export class ContentManager extends Component {
         }
 
         this.intervalStarted = true;
+        this.lastLocationHref = window.location.href;
 
         this.log.debug("Interval scan every", intervalMs, "ms");
 
@@ -647,8 +760,15 @@ export class ContentManager extends Component {
     }
 
     private async scanInterval(): Promise<void> {
+        const href = window.location.href;
+        const urlChanged = href !== this.lastLocationHref;
+        if (urlChanged) {
+            this.lastLocationHref = href;
+            this.log.debug("Location changed; scanning live document");
+        }
+
         const activePages = ContentManager.resolveActivePages();
-        await this.scanViews(document, true, activePages);
+        await this.scanViews(document, !urlChanged, activePages);
         await this.scanListings(document, activePages);
     }
 

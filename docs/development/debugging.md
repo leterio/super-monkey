@@ -128,6 +128,8 @@ Stage boundaries and what is safe at each one: [Script Lifecycle](../supermonkey
 | INFO  | `ContentManager`       | `Discovered` ... `new listing entities`                          | Listing scan found entries (TRACE dumps the payload)         |
 | DEBUG | `ContentManager`       | `Integration loaded; Publishing CONTENT_LOADED for live document` | First `CONTENT_LOADED` from Content Manager                |
 | DEBUG | `ContentManager`       | `Running page scan (views + listings)`                           | `CONTENT_LOADED` scan started                                |
+| DEBUG | `ContentManager`       | `Watching same-document location changes`                        | Location watcher is installed (`onload` only; stays off when interval scanning is active) |
+| DEBUG | `ContentManager`       | `Location changed; scanning live document`                       | Same-document URL change rescanned the live document         |
 | DEBUG | `ContentManager`       | `Listing apply finished:`                                        | Hidden / injected / kept counts follow                       |
 | DEBUG | `ContentManager`       | `No listing containers for group:`                               | Listing scan found no containers for that group              |
 | WARN  | `ContentManager`       | `CONTENT_LOADED without document; skipping page scan`            | Payload missing `document`                                   |

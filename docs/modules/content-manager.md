@@ -145,7 +145,7 @@ A view detects an open item and resolves one id.
 | `selectors`  | Optional CSS selectors for the base element when `idSource` reads from the DOM. Omit for a source that reads the tab URL. |
 | `idSource`   | Required [value source](../utils/value-source.md) for the content id.                                                     |
 
-Selector views mark the matched element with `data-sm-cm-viewed` (space-separated group keys) and remember `group::id` so the same id is not published again.
+Selector views mark the matched element with `data-sm-cm-viewed` (space-separated group keys) and remember `group::id`. Each `group::id` is published once. When that element later resolves a different id, the new id is published too.
 
 Each newly resolved view publishes `entity-viewed` (`EntityViewedEventPayload`) once.
 
@@ -278,7 +278,7 @@ When the selected node is the managed entry, omit `entryContainerSelector`.
 | `scanMode`       | `"onload"` (default) or `"interval"`.                                                                |
 | `scanIntervalMs` | Interval in milliseconds when `scanMode` is `"interval"`. Default `1000`; clamped to `1000`–`60000`. |
 
-`onload` scans on each `CONTENT_LOADED` (including republished foreign documents). `interval` also starts a timer that rescans **selector** views and listings on the tab document (URL-only views are skipped on the interval pass).
+`onload` scans on each `CONTENT_LOADED` (including republished foreign documents). In that mode, a same-document URL change (`history.pushState`, `history.replaceState`, back/forward, or a hash change) scans views and listings again on the live tab document, including URL-only views. `interval` starts a timer that rescans selector views and listings on the tab document and includes URL-only views when the tab URL changed since the previous scan. The location watcher and the interval timer do not run together.
 
 A discover pass that takes more than 100 ms logs a warning with the duration.
 
@@ -288,7 +288,7 @@ Loader ownership, Events, and listing context:
 
 `ContentManagerLoader.load(opts)` constructs at most one instance per tab. Omit `integration.contentManager` to skip load (`null`, no FATAL). A second `load` logs an error and returns. [Normalization](#normalization) runs before construct. A rejected walk or a thrown error logs FATAL and leaves Content Manager off.
 
-The instance extends `Component`. It **owns** `CONTENT_LOADED`: on `INTEGRATION_LOADED` it publishes `CONTENT_LOADED` with the live tab document. On each `CONTENT_LOADED` it scans **views** then **listings** on `event.data.document` (live or foreign), then starts interval rescans once when configured. Without Content Manager, `CONTENT_LOADED` is never published.
+The instance extends `Component`. It **owns** `CONTENT_LOADED`: on `INTEGRATION_LOADED` it publishes `CONTENT_LOADED` with the live tab document. On each `CONTENT_LOADED` it scans **views** then **listings** on `event.data.document` (live or foreign), then starts interval rescans once when configured. When scan mode is `onload`, a same-document URL change scans the live tab document again, including URL-only views. When scan mode is `interval`, the timer notices that URL change and the location watcher stays off. Without Content Manager, `CONTENT_LOADED` is never published.
 
 Source: `src/supermonkey/content-manager/`.
 
