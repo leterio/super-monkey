@@ -170,7 +170,7 @@ function mappingKeys(type: unknown): readonly string[] {
         return [...base, "urlSources", "downloadMode", "sendReferer"];
     }
     if (type === "collection") {
-        return [...base, "children"];
+        return [...base, "children", "keepSingleLeaf"];
     }
     return [...base, "urlSources", "downloadMode", "sendReferer", "children"];
 }
@@ -312,10 +312,13 @@ function normalizeCollectionMapping(
         return undefined;
     }
 
+    const keepSingleLeaf = raw.keepSingleLeaf === true ? true : undefined;
+
     return {
         type: "collection",
         ...base,
         children,
+        ...(keepSingleLeaf != null ? { keepSingleLeaf } : {}),
     };
 }
 

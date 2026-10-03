@@ -312,6 +312,15 @@ function mountMappingFields(
             mountUrlSource(sourcesSection, source, mapping.urlSources, `${basePath}.urlSources`, ui);
         });
     } else {
+        ui.field(host, `${id}-keep-single-leaf`, "Keep single leaf", ui.checkbox(
+            mapping.keepSingleLeaf,
+            (checked) => {
+                mapping.keepSingleLeaf = checked;
+            },
+        ), {
+            path: `${basePath}.keepSingleLeaf`,
+            help: "When checked, keep this collection when it has only one child leaf. Unchecked, that leaf replaces the collection.",
+        });
         ui.field(host, `${id}-children`, "Children", ui.textInput(
             mapping.children,
             (value) => {
@@ -667,6 +676,7 @@ function mappingToDraft(key: string, raw: unknown): DraftRdMapping {
     draft.children = Array.isArray(raw.children)
         ? joinCsv(raw.children.filter((entry): entry is string => typeof entry === "string"))
         : "";
+    draft.keepSingleLeaf = raw.keepSingleLeaf === true;
     draft.urlSources = Array.isArray(raw.urlSources)
         ? raw.urlSources.map(urlSourceToDraft).filter((entry): entry is DraftRdUrlSource => entry != null)
         : [];
@@ -765,7 +775,11 @@ function draftMappingToOpts(mapping: DraftRdMapping): Record<string, unknown> | 
         if (children.length === 0) {
             return undefined;
         }
-        return { ...base, children };
+        return {
+            ...base,
+            children,
+            ...(mapping.keepSingleLeaf ? { keepSingleLeaf: true } : {}),
+        };
     }
     const urlSources = mapping.urlSources
         .map(draftUrlSourceToOpts)
@@ -900,6 +914,7 @@ function emptyMapping(): DraftRdMapping {
         downloadMode: "",
         sendReferer: true,
         children: "",
+        keepSingleLeaf: false,
     };
 }
 
@@ -950,6 +965,7 @@ function isEmptyMapping(mapping: DraftRdMapping): boolean {
         && mapping.downloadMode.trim().length === 0
         && mapping.children.trim().length === 0
         && mapping.ignoreDecoration === false
+        && mapping.keepSingleLeaf === false
         && mapping.sendReferer
         && mapping.urlSources.every((source) => source.kind === "attribute" && source.attribute.trim().length === 0);
 }

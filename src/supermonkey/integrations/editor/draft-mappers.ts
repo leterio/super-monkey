@@ -202,6 +202,7 @@ export type DraftRdMapping = {
     downloadMode: string;
     sendReferer: boolean;
     children: string;
+    keepSingleLeaf: boolean;
 };
 
 export type DraftRdDownloadStep = {

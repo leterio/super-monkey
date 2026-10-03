@@ -98,6 +98,8 @@ export type ResourcesMappingCollection = BaseResourcesMapping & {
     readonly type: "collection";
     /** Mapping keys to scan inside each matched container. */
     readonly children: string[];
+    /** When true, a single child leaf stays inside this collection. */
+    readonly keepSingleLeaf?: boolean;
 };
 
 /** Leaf or collection mapping entry under ResourcesDownloader `mappings`. */

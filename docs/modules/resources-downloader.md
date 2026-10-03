@@ -202,9 +202,10 @@ Matches a **container**, then scans nested mapping keys inside it.
 | `children`         | yes      | Mapping keys to scan inside each container (must exist; cycles are rejected) |
 | `pageFilter`       | no       | Optional mapped-page names that gate this mapping. Empty/omitted runs on every page. See [Page filter](#page-filter) |
 | `ignoreDecoration` | no       | When `true`, skip decoration on the collection itself                        |
+| `keepSingleLeaf`   | no       | When `true`, a single child leaf stays inside the collection. Absent, that leaf replaces the collection |
 | `decoration`       | no       | See [Decoration](#decoration)                                                |
 
-A collection with a **single** child leaf is flattened to that leaf for the resource tree (the leaf keeps the child’s `mappedBy` and has no `parent`). The collection element still receives `data-sm-rd-mapped-by` with the **collection** key. Empty collections are omitted. Nested collections remain children of the parent collection.
+A collection with no matched children is omitted. With `keepSingleLeaf` absent, a collection with a **single** child leaf is replaced by that leaf: the leaf keeps the child’s `mappedBy` and has no `parent`. The collection element still receives `data-sm-rd-mapped-by` with the **collection** key. `keepSingleLeaf: true` keeps the collection in the resource tree with that leaf as its child, so the collection is decorated and carries `data-sm-rd-state`. A single nested collection stays a child of the parent collection. A collection with two or more children stays a collection.
 
 ## Page filter
 
