@@ -1,36 +1,3 @@
-/* Host-page overlay: backdrop + panel-sized iframe */
-.sm-overlay-host {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    z-index: 2147483647;
-    pointer-events: none;
-}
-
-.sm-overlay-host>.sm-backdrop,
-.sm-overlay-host>.sm-isolated-frame {
-    pointer-events: auto;
-}
-
-.sm-isolated-frame {
-    position: absolute;
-    top: 5vh;
-    left: 50%;
-    transform: translateX(-50%);
-    width: var(--sm-size-panel-width);
-    height: min(90vh, calc(100vh - 5vh));
-    border: 0;
-    margin: 0;
-    padding: 0;
-    z-index: 2147483647;
-    background: transparent;
-    color-scheme: normal;
-    border-radius: 0.5em;
-}
-
 /* Shadow host and iframe document root */
 :host,
 html.sm-ui-root {
@@ -71,13 +38,6 @@ html.sm-ui-root body {
     width: 100%;
     height: 100%;
     background-color: var(--sm-color-panel-bg);
-}
-
-.sm-backdrop {
-    position: absolute;
-    inset: 0;
-    background: var(--sm-color-backdrop);
-    z-index: 2147483646;
 }
 
 .sm-panel {

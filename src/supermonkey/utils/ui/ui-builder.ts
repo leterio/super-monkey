@@ -4,6 +4,7 @@ import { injectStyle } from "../dom/style";
 
 import cssResetRaw from "./css-reset.css?raw";
 import generalBodyCss from "./general.css?raw";
+import hostChromeCss from "./host-chrome.css?raw";
 import tokensCssRaw from "./tokens.css?raw";
 
 /** Combined design tokens and general body CSS for Super Monkey panels. */
@@ -268,12 +269,23 @@ export type IsolatedFrameOpts = {
 
 let isolatedFrameHostChromeInjected = false;
 
+function buildHostOverlayCss(): string {
+    const open = tokensCssRaw.indexOf("{");
+    const close = tokensCssRaw.lastIndexOf("}");
+    if (open < 0 || close <= open) {
+        throw new Error("Design token stylesheet has no rule body");
+    }
+
+    const tokenRule = `.${UICSSMap.OVERLAY_HOST_CLASS} ${tokensCssRaw.slice(open, close + 1)}`;
+    return `${tokenRule}\n${hostChromeCss}`;
+}
+
 function ensureIsolatedFrameHostChrome(): void {
     if (isolatedFrameHostChromeInjected) {
         return;
     }
     isolatedFrameHostChromeInjected = true;
-    injectStyle(GENERAL_CSS);
+    injectStyle(buildHostOverlayCss());
 }
 
 /**
@@ -308,9 +320,9 @@ function normalizeFrameClasses(frameClass?: string | readonly string[]): string[
 
 /**
  * Creates a host overlay: full-viewport backdrop plus a panel-sized `about:blank` iframe.
- * Injects {@link CSS_RESET} and {@link GENERAL_CSS} into the frame; pass extra sheets via `css`
- * (also applied on the host so `.sm-isolated-frame` shell rules can size the iframe element).
- * Host chrome uses `.sm-overlay-host` / `.sm-isolated-frame`; the document root uses `.sm-ui-root`.
+ * The host page receives overlay chrome scoped to `.sm-overlay-host` (position, backdrop, frame size).
+ * {@link CSS_RESET}, {@link GENERAL_CSS}, and extra sheets passed via `css` are injected into the frame document only.
+ * The frame document root uses `.sm-ui-root`.
  * The frame `head` includes `<meta name="darkreader-lock">` so Dark Reader skips the document.
  * @throws When the iframe document cannot be initialized
  * @see https://github.com/darkreader/darkreader/blob/main/CONTRIBUTING.md#disabling-dark-reader-statically
@@ -330,12 +342,6 @@ export function createIsolatedFrame(
     host.className = UICSSMap.OVERLAY_HOST_CLASS;
 
     const sheets = normalizeCssSheets(css);
-    if (sheets.length > 0) {
-        const hostStyle = document.createElement("style");
-        hostStyle.textContent = sheets.join("\n");
-        host.appendChild(hostStyle);
-    }
-
     const backdrop = injectBackdrop(host, opts.onBackdropClick);
 
     const iframe = document.createElement("iframe");
