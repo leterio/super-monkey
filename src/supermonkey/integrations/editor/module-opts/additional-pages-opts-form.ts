@@ -361,7 +361,7 @@ function mountContextManagerFields(
             { static: "Static template", source: "Value source" },
         ), {
             path: urlTemplatePath,
-            help: "Static path/URL with {{NUMBER}}, or resolve a template string from the page.",
+            help: "Static path/URL with {{NUMBER}}, or a value source. A query-param source uses its key as the page parameter.",
         });
 
         if (draft.urlTemplateKind === "static") {
@@ -377,7 +377,7 @@ function mountContextManagerFields(
         } else {
             const sourceSection = injectSection(host, {
                 title: "URL template source",
-                subtitle: "Resolved string must include {{NUMBER}}. Same controls as Content Manager Value Source.",
+                subtitle: "A query-param source uses its key as the page parameter. Other sources resolve to a string that includes {{NUMBER}}.",
                 foldable: true,
                 folded: false,
             });
@@ -397,7 +397,7 @@ function mountContextManagerFields(
             },
         ), {
             path: `${urlTemplatePath}.copyPageQueryParams`,
-            help: "When checked (default), copies the current tab query string onto built page URLs.",
+            help: "When checked (default), copies the current tab query string onto built page URLs. A query-param page key is then set to the page being fetched.",
         });
     }
 }

@@ -12,6 +12,7 @@ import {
 } from "../paging-strategy/numbered-paging-strategy";
 import {
     extractPageNumberFromUrl,
+    readPageNumberFromUrl,
     resolveUrlTemplate,
     type ResolvedUrlTemplate,
     type UrlTemplate,
@@ -192,6 +193,11 @@ export class DomContextManager implements ContextManager {
 
         if (url == null) {
             return null;
+        }
+
+        const resolved = this.resolvedUrlTemplate;
+        if (resolved != null) {
+            return readPageNumberFromUrl(url, resolved);
         }
 
         return extractPageNumberFromUrl(url, urlTemplate);
@@ -383,7 +389,10 @@ export class DomContextManager implements ContextManager {
                 }
             }
 
-            const fromLocation = extractPageNumberFromUrl(window.location.href, urlTemplate);
+            const resolved = this.resolvedUrlTemplate;
+            const fromLocation = resolved != null
+                ? readPageNumberFromUrl(window.location.href, resolved)
+                : extractPageNumberFromUrl(window.location.href, urlTemplate);
             if (fromLocation != null) {
                 return fromLocation;
             }

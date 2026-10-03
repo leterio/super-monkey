@@ -135,7 +135,7 @@ Features that accept a `ValueSource` (or a list of them) document their own fiel
 
 - [Content Manager](../modules/content-manager.md) - view `idSource` and listing `entryIdSource`
 - [Resources Downloader](../modules/resources-downloader.md) - leaf `urlSources` and custom download steps
-- [Additional Pages](../modules/additional-pages.md) - optional `urlTemplate.source` for numbered URL templates
+- [Additional Pages](../modules/additional-pages.md) - optional `urlTemplate.source` for numbered URL templates; a `query-param` source uses `key` as the page parameter
 
 ## Contributors
 

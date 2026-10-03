@@ -2,7 +2,7 @@ import { Logger } from "../../../utils/logger";
 import { ItemState } from "../../../utils/item-state";
 import { Page, PaginationContext } from "../metadata";
 import {
-    extractPageNumberFromUrl,
+    readPageNumberFromUrl,
     resolveUrlTemplate,
     type UrlTemplate,
 } from "../url-template";
@@ -31,10 +31,8 @@ export class UrlContextManager implements ContextManager {
         this.log.debug("Resolving pagination context from URL template ...", window.location.href);
 
         const resolvedUrlTemplate = resolveUrlTemplate(this.opts.urlTemplate, document);
-        const templatePath = resolvedUrlTemplate?.template;
-
-        const parsed = templatePath != null
-            ? extractPageNumberFromUrl(window.location.href, templatePath)
+        const parsed = resolvedUrlTemplate != null
+            ? readPageNumberFromUrl(window.location.href, resolvedUrlTemplate)
             : null;
 
         if (parsed == null) {

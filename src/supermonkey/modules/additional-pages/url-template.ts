@@ -10,7 +10,11 @@ export type UrlTemplateStaticConfig = {
     readonly copyPageQueryParams?: boolean;
 };
 
-/** Builds the template string from a ValueSource (document/tab as context). */
+/**
+ * Builds numbered page URLs from a ValueSource.
+ * A `query-param` source uses `key` as the page parameter and the tab pathname as the base path.
+ * Any other source resolves to a string that includes `{{NUMBER}}`.
+ */
 export type UrlTemplateSourceConfig = {
     readonly source: ValueSource;
     /** When not `false`, copies the current tab query string onto built page URLs (default `true`). */
@@ -25,10 +29,18 @@ export type UrlTemplate = string | UrlTemplateConfig;
 
 /** Snapshot used when building numbered page URLs. */
 export type ResolvedUrlTemplate = {
-    /** Path or absolute URL that still contains `{{NUMBER}}`. */
+    /**
+     * Path or absolute URL.
+     * Contains `{{NUMBER}}`, or is the tab pathname when `pageQueryParam` is set.
+     */
     readonly template: string;
     /** Query params snapshotted from the live tab when `copyPageQueryParams` is enabled. */
     readonly queryParams: Record<string, string>;
+    /**
+     * Query parameter that carries the page number.
+     * Written after copied query params, so the fetched page number overrides a copied value with the same key.
+     */
+    readonly pageQueryParam?: string;
 };
 
 function resolvePlaceholder(urlTemplate: string): string | null {
@@ -85,6 +97,8 @@ export function normalizeUrlTemplate(input: UrlTemplate): UrlTemplateConfig {
 
 /**
  * Resolves authoring config to a path/absolute template and optional query snapshot.
+ * A `query-param` source keeps the tab pathname and records `key` as `pageQueryParam`.
+ * Any other source resolves to a string that includes `{{NUMBER}}`.
  * Uses `document` (or `base`) when resolving a ValueSource.
  */
 export function resolveUrlTemplate(
@@ -96,6 +110,21 @@ export function resolveUrlTemplate(
     }
 
     const config = normalizeUrlTemplate(input);
+    const queryParams = snapshotQueryParams(config.copyPageQueryParams !== false);
+
+    if ("source" in config && config.source.source === "query-param") {
+        const pageQueryParam = config.source.key.trim();
+        if (pageQueryParam.length === 0) {
+            return null;
+        }
+
+        return {
+            template: window.location.pathname,
+            queryParams,
+            pageQueryParam,
+        };
+    }
+
     let template: string | null = null;
 
     if ("template" in config) {
@@ -109,14 +138,51 @@ export function resolveUrlTemplate(
         return null;
     }
 
+    return { template, queryParams };
+}
+
+function snapshotQueryParams(enabled: boolean): Record<string, string> {
     const queryParams: Record<string, string> = {};
-    if (config.copyPageQueryParams !== false) {
-        new URL(window.location.href).searchParams.forEach((value, key) => {
-            queryParams[key] = value;
-        });
+    if (!enabled) {
+        return queryParams;
     }
 
-    return { template, queryParams };
+    new URL(window.location.href).searchParams.forEach((value, key) => {
+        queryParams[key] = value;
+    });
+
+    return queryParams;
+}
+
+/**
+ * Reads `pageQueryParam` from `url` as an integer.
+ * Relative URLs resolve against the current tab location.
+ * @returns The parsed integer, or `null` when the parameter is missing or has no digits
+ */
+export function extractPageQueryParam(url: string, pageQueryParam: string): number | null {
+    if (url.trim().length === 0 || pageQueryParam.trim().length === 0) {
+        return null;
+    }
+
+    try {
+        const raw = new URL(url, window.location.href).searchParams.get(pageQueryParam);
+        return raw == null ? null : parseInteger(raw);
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Reads the page number from `url` using a resolved template.
+ * Query-param templates read `pageQueryParam`. Other templates capture `{{NUMBER}}`.
+ * @returns The parsed integer, or `null` when `url` does not contain it
+ */
+export function readPageNumberFromUrl(url: string, resolved: ResolvedUrlTemplate): number | null {
+    if (resolved.pageQueryParam != null) {
+        return extractPageQueryParam(url, resolved.pageQueryParam);
+    }
+
+    return extractPageNumberFromUrl(url, resolved.template);
 }
 
 /**
@@ -150,18 +216,23 @@ export function applyPageNumberToTemplate(
 }
 
 /**
- * Builds a paged URL from a resolved template: substitutes `{{NUMBER}}`, then merges snapshotted query params.
+ * Builds a paged URL from a resolved template.
+ * Substitutes `{{NUMBER}}` when the template contains it, merges snapshotted query params,
+ * then sets `pageQueryParam` to `pageNumber` so the fetched page overrides a copied value.
  */
 export function buildPagedUrl(resolved: ResolvedUrlTemplate, pageNumber: number): string {
     const pathOrUrl = applyPageNumberToTemplate(resolved.template, pageNumber);
 
-    if (Object.keys(resolved.queryParams).length === 0) {
+    if (Object.keys(resolved.queryParams).length === 0 && resolved.pageQueryParam == null) {
         return pathOrUrl;
     }
 
     const url = new URL(pathOrUrl, window.location.origin);
     for (const [key, value] of Object.entries(resolved.queryParams)) {
         url.searchParams.set(key, value);
+    }
+    if (resolved.pageQueryParam != null) {
+        url.searchParams.set(resolved.pageQueryParam, pageNumber.toString());
     }
 
     if (pathOrUrl.startsWith("/") && !/^https?:\/\//.test(pathOrUrl)) {

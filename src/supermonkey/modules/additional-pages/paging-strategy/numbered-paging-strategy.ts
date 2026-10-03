@@ -119,14 +119,16 @@ export abstract class NumberedPagingStrategy implements PagingStrategy {
     }
 
     /**
-     * @throws When `resolvedUrlTemplate` is missing, lacks `{{NUMBER}}`, or is not a path/absolute http(s) URL
+     * @throws When `resolvedUrlTemplate` is missing, has neither `{{NUMBER}}` nor a page query parameter, or is not a path/absolute http(s) URL
      */
     validateContext(context: PaginationContext): void {
         const resolved = context.resolvedUrlTemplate;
+        const hasPageQueryParam = resolved?.pageQueryParam != null && resolved.pageQueryParam.length > 0;
 
-        if (resolved == null || !hasPageNumberPlaceholder(resolved.template)) {
+        if (resolved == null || (!hasPageQueryParam && !hasPageNumberPlaceholder(resolved.template))) {
             throw new Error(
-                `NumberedPagingStrategy: urlTemplate is required and must include ${NUMBERS_PLACEHOLDER}`,
+                `NumberedPagingStrategy: urlTemplate is required and must include ${NUMBERS_PLACEHOLDER}` +
+                " or a query-param source",
             );
         }
 
