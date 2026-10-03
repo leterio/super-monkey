@@ -74,7 +74,7 @@ Enter these values in editor order to build the Atlas Library integration:
    - **Listed styles**: `& { outline: 2px solid #d6a700; }`
 9. Select **Save**, reload the page, and verify that Atlas Library cards receive the expected History styling.
 
-The editor converts comma-separated matched domains, attributes, mapped-page paths, and selector lists into arrays. Regex fields use one value per line. Value source **Map steps** serialize to an ordered `map` array; the label-to-value mapping is in [Value source - In the editor](../utils/value-source.md#in-the-editor).
+The editor converts comma-separated matched domains, attributes, mapped-page paths, selector lists, Resources Downloader mapping children, and wrap class lists into arrays. Regex fields use one value per line. Value source **Map steps** serialize to an ordered `map` array; the label-to-value mapping is in [Value source - In the editor](../utils/value-source.md#in-the-editor).
 
 ### Id from href
 

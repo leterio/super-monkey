@@ -1,4 +1,4 @@
-import { joinCsv, joinLines, randomString, splitCsv, splitLines } from "../../../utils/string";
+import { joinCsv, randomString, splitCsv } from "../../../utils/string";
 import { isPlainObject } from "../../../utils/type";
 import { injectSection } from "../../../utils/ui/ui-builder";
 import type { IntegrationValidationIssue } from "../../integration-validation";
@@ -251,16 +251,14 @@ function mountMappingFields(
         path: `${basePath}.pageFilter`,
         help: "Optional. Comma-separated mapped page names. Prefix exclusions with !!. Empty = all pages.",
     });
-    ui.field(host, `${id}-ignore-decoration`, "Ignore decoration", ui.select(
-        ["false", "true"],
+    ui.field(host, `${id}-ignore-decoration`, "Ignore decoration", ui.checkbox(
         mapping.ignoreDecoration,
-        (value) => {
-            mapping.ignoreDecoration = value as DraftRdMapping["ignoreDecoration"];
+        (checked) => {
+            mapping.ignoreDecoration = checked;
         },
-        { false: "No", true: "Yes" },
     ), {
         path: `${basePath}.ignoreDecoration`,
-        help: "When Yes, skip attaching a download control for this mapping.",
+        help: "When checked, skip attaching a download control for this mapping.",
     });
 
     if (mapping.type === "leaf") {
@@ -305,15 +303,14 @@ function mountMappingFields(
             mountUrlSource(sourcesSection, source, mapping.urlSources, `${basePath}.urlSources`, ui);
         });
     } else {
-        ui.field(host, `${id}-children`, "Children", ui.textarea(
+        ui.field(host, `${id}-children`, "Children", ui.textInput(
             mapping.children,
             (value) => {
                 mapping.children = value;
             },
         ), {
             path: `${basePath}.children`,
-            help: "One mapping key per line to scan inside each matched container.",
-            column: true,
+            help: "Comma-separated mapping keys to scan inside each matched container.",
         });
     }
 }
@@ -331,48 +328,41 @@ function mountDecorationFields(
         foldable: true,
         folded: true,
     });
-    ui.field(section, `${id}-wrap`, "Wrap element", ui.select(
-        ["false", "true"],
+    ui.field(section, `${id}-wrap`, "Wrap element", ui.checkbox(
         decoration.wrapElement,
-        (value) => {
-            decoration.wrapElement = value as DraftRdDecoration["wrapElement"];
+        (checked) => {
+            decoration.wrapElement = checked;
         },
-        { false: "No", true: "Yes" },
     ), {
         path: `${basePath}.wrapElement`,
-        help: "When Yes, wrap the target in a container before attaching the button.",
+        help: "When checked, wrap the target in a container before attaching the button.",
     });
-    ui.field(section, `${id}-wrap-classes`, "Wrap classes", ui.textarea(
+    ui.field(section, `${id}-wrap-classes`, "Wrap classes", ui.textInput(
         decoration.wrapClasses,
         (value) => {
             decoration.wrapClasses = value;
         },
     ), {
         path: `${basePath}.wrapClasses`,
-        help: "One class name per line. Applied to the wrap before copied or built-in classes.",
-        column: true,
+        help: "Comma-separated class names. Applied to the wrap before copied or built-in classes.",
     });
-    ui.field(section, `${id}-wrap-copy`, "Wrap copy element classes", ui.select(
-        ["false", "true"],
+    ui.field(section, `${id}-wrap-copy`, "Wrap copy element classes", ui.checkbox(
         decoration.wrapCopyElementClasses,
-        (value) => {
-            decoration.wrapCopyElementClasses = value as DraftRdDecoration["wrapCopyElementClasses"];
+        (checked) => {
+            decoration.wrapCopyElementClasses = checked;
         },
-        { false: "No", true: "Yes" },
     ), {
         path: `${basePath}.wrapCopyElementClasses`,
-        help: "When Yes, copy the target's classes onto the wrap.",
+        help: "When checked, copy the target's classes onto the wrap.",
     });
-    ui.field(section, `${id}-immediate`, "Use immediate parent", ui.select(
-        ["false", "true"],
+    ui.field(section, `${id}-immediate`, "Use immediate parent", ui.checkbox(
         decoration.useImmediateParent,
-        (value) => {
-            decoration.useImmediateParent = value as DraftRdDecoration["useImmediateParent"];
+        (checked) => {
+            decoration.useImmediateParent = checked;
         },
-        { false: "No", true: "Yes" },
     ), {
         path: `${basePath}.useImmediateParent`,
-        help: "When Yes, decorate the target's parent. Wins over Closest selectors.",
+        help: "When checked, decorate the target's parent. Wins over Closest selectors.",
     });
     ui.field(section, `${id}-closest`, "Closest selectors", ui.textInput(
         decoration.closestSelectors,
@@ -383,16 +373,14 @@ function mountDecorationFields(
         path: `${basePath}.closestSelectors`,
         help: "Comma-separated CSS selectors for element.closest. First match wins.",
     });
-    ui.field(section, `${id}-override-pos`, "Override position", ui.select(
-        ["false", "true"],
+    ui.field(section, `${id}-override-pos`, "Override position", ui.checkbox(
         decoration.overridePosition,
-        (value) => {
-            decoration.overridePosition = value as DraftRdDecoration["overridePosition"];
+        (checked) => {
+            decoration.overridePosition = checked;
         },
-        { false: "No", true: "Yes" },
     ), {
         path: `${basePath}.overridePosition`,
-        help: "When Yes, set position: relative on the decoration container.",
+        help: "When checked, set position: relative on the decoration container.",
     });
 }
 
@@ -643,11 +631,11 @@ function mappingToDraft(key: string, raw: unknown): DraftRdMapping {
     draft.pageFilter = Array.isArray(raw.pageFilter)
         ? joinCsv(raw.pageFilter.filter((entry): entry is string => typeof entry === "string"))
         : "";
-    draft.ignoreDecoration = raw.ignoreDecoration === true ? "true" : "false";
+    draft.ignoreDecoration = raw.ignoreDecoration === true;
     draft.decoration = decorationToDraft(raw.decoration);
     draft.downloadMode = typeof raw.downloadMode === "string" ? raw.downloadMode : "";
     draft.children = Array.isArray(raw.children)
-        ? joinLines(raw.children.filter((entry): entry is string => typeof entry === "string"))
+        ? joinCsv(raw.children.filter((entry): entry is string => typeof entry === "string"))
         : "";
     draft.urlSources = Array.isArray(raw.urlSources)
         ? raw.urlSources.map(urlSourceToDraft).filter((entry): entry is DraftRdUrlSource => entry != null)
@@ -660,12 +648,12 @@ function decorationToDraft(raw: unknown): DraftRdDecoration {
     if (!isPlainObject(raw)) {
         return draft;
     }
-    draft.wrapElement = raw.wrapElement === true ? "true" : "false";
-    draft.wrapCopyElementClasses = raw.wrapCopyElementClasses === true ? "true" : "false";
-    draft.useImmediateParent = raw.useImmediateParent === true ? "true" : "false";
-    draft.overridePosition = raw.overridePosition === true ? "true" : "false";
+    draft.wrapElement = raw.wrapElement === true;
+    draft.wrapCopyElementClasses = raw.wrapCopyElementClasses === true;
+    draft.useImmediateParent = raw.useImmediateParent === true;
+    draft.overridePosition = raw.overridePosition === true;
     draft.wrapClasses = Array.isArray(raw.wrapClasses)
-        ? joinLines(raw.wrapClasses.filter((entry): entry is string => typeof entry === "string"))
+        ? joinCsv(raw.wrapClasses.filter((entry): entry is string => typeof entry === "string"))
         : "";
     draft.closestSelectors = Array.isArray(raw.closestSelectors)
         ? joinCsv(raw.closestSelectors.filter((entry): entry is string => typeof entry === "string"))
@@ -735,11 +723,11 @@ function draftMappingToOpts(mapping: DraftRdMapping): Record<string, unknown> | 
         type: mapping.type,
         selectors,
         ...(pageFilter.length > 0 ? { pageFilter } : {}),
-        ...(mapping.ignoreDecoration === "true" ? { ignoreDecoration: true } : {}),
+        ...(mapping.ignoreDecoration ? { ignoreDecoration: true } : {}),
         ...(decoration != null ? { decoration } : {}),
     };
     if (mapping.type === "collection") {
-        const children = splitLines(mapping.children);
+        const children = splitCsv(mapping.children);
         if (children.length === 0) {
             return undefined;
         }
@@ -760,17 +748,17 @@ function draftMappingToOpts(mapping: DraftRdMapping): Record<string, unknown> | 
 }
 
 function draftDecorationToOpts(decoration: DraftRdDecoration): Record<string, unknown> | undefined {
-    const wrapClasses = splitLines(decoration.wrapClasses);
+    const wrapClasses = splitCsv(decoration.wrapClasses);
     const closestSelectors = splitCsv(decoration.closestSelectors);
     const value: Record<string, unknown> = {
-        ...(decoration.wrapElement === "true" ? { wrapElement: true } : {}),
+        ...(decoration.wrapElement ? { wrapElement: true } : {}),
         ...(wrapClasses.length > 0 ? { wrapClasses } : {}),
-        ...(decoration.wrapCopyElementClasses === "true" ? { wrapCopyElementClasses: true } : {}),
-        ...(decoration.useImmediateParent === "true" ? { useImmediateParent: true } : {}),
-        ...(decoration.useImmediateParent !== "true" && closestSelectors.length > 0
+        ...(decoration.wrapCopyElementClasses ? { wrapCopyElementClasses: true } : {}),
+        ...(decoration.useImmediateParent ? { useImmediateParent: true } : {}),
+        ...(!decoration.useImmediateParent && closestSelectors.length > 0
             ? { closestSelectors }
             : {}),
-        ...(decoration.overridePosition === "true" ? { overridePosition: true } : {}),
+        ...(decoration.overridePosition ? { overridePosition: true } : {}),
     };
     return Object.keys(value).length > 0 ? value : undefined;
 }
@@ -868,7 +856,7 @@ function emptyMapping(): DraftRdMapping {
         type: "leaf",
         selectors: "",
         pageFilter: "",
-        ignoreDecoration: "false",
+        ignoreDecoration: false,
         decoration: emptyDecoration(),
         urlSources: [emptyUrlSource()],
         downloadMode: "",
@@ -878,12 +866,12 @@ function emptyMapping(): DraftRdMapping {
 
 function emptyDecoration(): DraftRdDecoration {
     return {
-        wrapElement: "false",
+        wrapElement: false,
         wrapClasses: "",
-        wrapCopyElementClasses: "false",
-        useImmediateParent: "false",
+        wrapCopyElementClasses: false,
+        useImmediateParent: false,
         closestSelectors: "",
-        overridePosition: "false",
+        overridePosition: false,
     };
 }
 
@@ -920,7 +908,7 @@ function isEmptyMapping(mapping: DraftRdMapping): boolean {
         && mapping.selectors.trim().length === 0
         && mapping.downloadMode.trim().length === 0
         && mapping.children.trim().length === 0
-        && mapping.ignoreDecoration === "false"
+        && mapping.ignoreDecoration === false
         && mapping.urlSources.every((source) => source.kind === "attribute" && source.attribute.trim().length === 0);
 }
 

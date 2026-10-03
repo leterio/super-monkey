@@ -26,7 +26,7 @@ In the [Integration editor](../integrations/editor-ui.md), set **Module key** to
 
 ## Options shape
 
-Stored and TypeScript integrations use this opts object (`module: "ResourcesDownloader"`). The browser editor exposes **Mappings** and optional **Download modes** as typed fields (selector lists use CSV; mapping children and wrap class lists use one value per line; URL sources may be attribute names or Value Source controls).
+Stored and TypeScript integrations use this opts object (`module: "ResourcesDownloader"`). The browser editor exposes **Mappings** and optional **Download modes** as typed fields (selector lists, mapping children, and wrap class lists use CSV; URL sources may be attribute names or Value Source controls).
 
 **Pattern A - One custom leaf on cards:**
 
