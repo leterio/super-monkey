@@ -1,5 +1,5 @@
 import { normalizeContentManagerOpts } from "../content-manager/content-manager-opts";
-import { ModuleLoader } from "../modules/module-loader";
+import { ModuleLoader, normalizeNotificationBarOpts } from "../modules/module-loader";
 import {
     hasPositiveAllowDenyPattern,
     normalizeAllowDenyPattern,
@@ -9,6 +9,7 @@ import { isValidId } from "../utils/string";
 import { isPlainObject } from "../utils/type";
 import { isValidDomainPattern, isValidPathPattern } from "../utils/urls";
 import { Integration, IntegrationMappedPage, IntegrationModule } from "./metadata";
+import { normalizeStoredIntegration } from "./store/normalize-stored-integration";
 
 export type IntegrationValidationIssue = {
     readonly path: string;
@@ -29,7 +30,7 @@ export type ValidateIntegrationOptions = {
 
 /**
  * Validates an integration for create/edit save.
- * Every normalize finding blocks save. When valid, `value` carries normalized opts.
+ * Reject and repair findings block save. `unknown` findings do not. When valid, `value` carries normalized opts.
  */
 export function validateIntegration(
     integration: Integration,
@@ -65,10 +66,14 @@ export function validateIntegration(
     }
 
     const modules: Record<string, IntegrationModule> = {};
-    for (const [instanceName, module] of Object.entries(integration.modules ?? {})) {
-        const moduleResult = validateModule(instanceName, module, `modules.${instanceName}`);
-        issues.push(...moduleResult.issues);
-        modules[instanceName] = moduleResult.module;
+    if (integration.modules != null && !isPlainObject(integration.modules)) {
+        issues.push({ path: "modules", message: "modules must be an object." });
+    } else {
+        for (const [instanceName, module] of Object.entries(integration.modules ?? {})) {
+            const moduleResult = validateModule(instanceName, module, `modules.${instanceName}`);
+            issues.push(...moduleResult.issues);
+            modules[instanceName] = moduleResult.module;
+        }
     }
 
     if (integration.defaults != null && !isPlainObject(integration.defaults)) {
@@ -216,6 +221,14 @@ function validateModule(
 ): { issues: IntegrationValidationIssue[]; module: IntegrationModule } {
     const issues: IntegrationValidationIssue[] = [];
 
+    if (!isPlainObject(module)) {
+        issues.push({ path, message: "Module instance must be an object." });
+        return {
+            issues,
+            module: { module: "" },
+        };
+    }
+
     if (!isValidId(instanceName)) {
         issues.push({
             path,
@@ -273,6 +286,9 @@ function collectNormalizedIssues(
     const issues: IntegrationValidationIssue[] = [];
 
     for (const finding of normalized.findings) {
+        if (finding.kind === "unknown") {
+            continue;
+        }
         issues.push({
             path: qualifyFindingPath(sectionPath, finding.path),
             message: finding.message,
@@ -320,5 +336,78 @@ export function parseOptsJson(
         return { ok: true, value: parsed };
     } catch {
         return { ok: false, message: "opts is not valid JSON." };
+    }
+}
+
+/**
+ * `unknown` findings for a raw integration document.
+ * Identity keys stay in place; closed objects and nested unknown objects are listed in one pass.
+ */
+export function collectUnrecognizedOpts(raw: unknown): readonly OptsFinding[] {
+    const findings: OptsFinding[] = [];
+    const mapKey = isPlainObject(raw) && typeof raw.name === "string" ? raw.name : "";
+    pushUnknown(findings, normalizeStoredIntegration(raw, mapKey).findings);
+
+    if (!isPlainObject(raw)) {
+        return findings;
+    }
+
+    if (isPlainObject(raw.contentManager)) {
+        pushUnknown(findings, normalizeContentManagerOpts(raw.contentManager).findings);
+    }
+
+    if (isPlainObject(raw.modules)) {
+        for (const [instanceName, module] of Object.entries(raw.modules)) {
+            if (!isPlainObject(module) || !isPlainObject(module.opts)) {
+                continue;
+            }
+            const moduleKey = typeof module.module === "string" ? module.module.trim() : "";
+            const normalizer = ModuleLoader.getOptsNormalizer(moduleKey);
+            if (normalizer == null) {
+                continue;
+            }
+            const prefix = `modules.${instanceName}.opts`;
+            for (const finding of normalizer(module.opts).findings) {
+                if (finding.kind !== "unknown") {
+                    continue;
+                }
+                findings.push({
+                    path: qualifyFindingPath(prefix, finding.path),
+                    message: finding.message,
+                    kind: finding.kind,
+                });
+            }
+        }
+    }
+
+    if (isPlainObject(raw.defaults) && raw.defaults.notificationBar != null) {
+        pushUnknown(findings, normalizeNotificationBarOpts(raw.defaults.notificationBar).findings);
+    }
+
+    return findings;
+}
+
+/**
+ * Asks before save drops unrecognized keys.
+ * Returns true when there is nothing to drop, or the user accepts.
+ */
+export function confirmUnrecognizedOpts(findings: readonly OptsFinding[]): boolean {
+    if (findings.length === 0) {
+        return true;
+    }
+
+    const body = findings
+        .map((finding) => `${finding.path}\n${finding.message}`)
+        .join("\n\n");
+    return window.confirm(
+        `These keys are not in the options contract. Saving drops them permanently.\n\n${body}\n\nSave the sanitized options?`,
+    );
+}
+
+function pushUnknown(target: OptsFinding[], findings: readonly OptsFinding[]): void {
+    for (const finding of findings) {
+        if (finding.kind === "unknown") {
+            target.push(finding);
+        }
     }
 }

@@ -190,19 +190,19 @@ Saving an edited built-in creates a stored override. **Reset** or **Restore defa
 }
 ```
 
-Optional top-level `contentManager` and `defaults` fields follow their owning contracts ([Content Manager](../modules/content-manager.md), module consumers of `defaults`). Import uses the JSON `matchedDomains` array. When the name already exists, Import asks before replacing it. Canceling the file picker or selecting an empty file shows an alert and does not open the editor. Invalid JSON or a draft that fails validation opens a populated Create editor with validation issues.
+Optional top-level `contentManager` and `defaults` fields follow their owning contracts ([Content Manager](../modules/content-manager.md), module consumers of `defaults`). Import uses the JSON `matchedDomains` array. When the name already exists, Import asks before replacing it. When the file contains keys outside the opts contract, Import asks before saving the sanitized object; cancel leaves storage unchanged. Canceling the file picker or selecting an empty file shows an alert and does not open the editor. Invalid JSON or a draft that fails validation opens a populated Create editor with validation issues.
 
 ## Validation
 
-`validateIntegration` runs on **Save** and **Import**. Storage changes only when validation succeeds. The editor persists the normalized integration value (Content Manager and module opts after their normalizers). Runtime may still repair stored data on load; the editor does not save when any normalize finding remains.
+Opening Edit lists reject and repair findings from the stored integration and the draft, plus unrecognized keys, in the footer before Save. `validateIntegration` runs again on **Save** and **Import**. Storage changes only when validation succeeds. The editor persists the normalized integration value (Content Manager and module opts after their normalizers). Reject and repair findings block Save. `unknown` findings do not; Save and Import list those keys and values and continue only after confirmation. Runtime logs the same keys as WARN on load and keeps the in-memory sanitized value. Storage is rewritten only by that confirmed save.
 
 | Check            | Rule                                                                                                         |
 | ---------------- | ------------------------------------------------------------------------------------------------------------ |
 | `name`           | Valid id segment; create mode also rejects an existing effective name.                                       |
 | `matchedDomains` | At least one valid positive domain pattern after whitespace and `!!` normalization.                          |
 | `mappedPages`    | Each page has a unique valid id and at least one valid positive pathname glob (optional `!!` exclusions). |
-| `contentManager` | Normalization must produce a value; every finding (reject or repair) blocks Save.                          |
-| `modules`        | Instance ids are valid and unique, the module key is registered, and present opts pass module normalization with no findings. Typed forms must not omit incomplete rows; they return field issues instead. |
+| `contentManager` | Normalization must produce a value; reject and repair findings block Save. `unknown` keys are confirmed, then dropped. |
+| `modules`        | Instance ids are valid and unique, the module key is registered, and present opts pass module normalization with no reject or repair findings. `unknown` keys are confirmed, then dropped. Typed forms must not omit incomplete rows; they return field issues instead. |
 | `defaults`       | Plain object when present.                                                                                   |
 
 Failed checks produce footer issues and highlight the matching editor control (`data-path`) plus foldable ancestors up to the panel body. Each footer item focuses its control when clicked. Typed module forms map to the same `opts` objects as storage and TypeScript; normalization still runs at Save.

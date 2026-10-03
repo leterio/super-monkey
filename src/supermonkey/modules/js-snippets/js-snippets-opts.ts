@@ -1,4 +1,5 @@
 import { Normalized, OptsNormalization } from "../../utils/opts/normalization";
+import { reportUnrecognizedKeys } from "../../utils/opts/opts-fields";
 import { isValidId, trimToUndefined } from "../../utils/string";
 import { isPlainObject } from "../../utils/type";
 import type { ModuleOpts } from "../module";
@@ -48,6 +49,8 @@ export function normalizeJsSnippetsOpts(raw: unknown): Normalized<JsSnippetsOpts
         return walk.finish<JsSnippetsOpts>(undefined);
     }
 
+    reportUnrecognizedKeys(raw, ["rules"], "", walk);
+
     const rules = normalizeRules(raw.rules, walk);
 
     if (rules.length === 0) {
@@ -92,6 +95,8 @@ function normalizeRule(
         walk.repair(path, "rule must be an object");
         return undefined;
     }
+
+    reportUnrecognizedKeys(raw, ["name", "label", "description", "listener", "code"], path, walk);
 
     const name = typeof raw.name === "string" ? raw.name.trim() : "";
     if (!isValidId(name)) {

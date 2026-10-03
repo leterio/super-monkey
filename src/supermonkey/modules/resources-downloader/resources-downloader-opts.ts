@@ -1,5 +1,5 @@
 import { trimArray } from "../../utils/arrays";
-import { readStringList } from "../../utils/opts/opts-fields";
+import { readStringList, reportUnrecognizedKeys } from "../../utils/opts/opts-fields";
 import { Normalized, OptsNormalization } from "../../utils/opts/normalization";
 import { normalizeValueSource } from "../../utils/opts/value-resolver-opts";
 import { trimToUndefined } from "../../utils/string";
@@ -38,6 +38,8 @@ export function normalizeResourcesDownloaderOpts(raw: unknown): Normalized<Resou
         walk.reject("opts", "options must be an object");
         return walk.finish<ResourcesDownloaderOpts>(undefined);
     }
+
+    reportUnrecognizedKeys(raw, ["mappings", "downloadModes", "entryPoints"], "", walk);
 
     const userMappings = normalizeUserMappings(raw.mappings, walk);
     if (userMappings == null) {
@@ -163,6 +165,27 @@ function normalizeUserMappings(
     return mappings;
 }
 
+function mappingKeys(type: unknown): readonly string[] {
+    const base = ["type", "selectors", "pageFilter", "ignoreDecoration", "decoration"];
+    if (type === "leaf") {
+        return [...base, "urlSources", "downloadMode"];
+    }
+    if (type === "collection") {
+        return [...base, "children"];
+    }
+    return [...base, "urlSources", "downloadMode", "children"];
+}
+
+function downloadStepKeys(mode: unknown): readonly string[] {
+    if (mode === "download") {
+        return ["mode", "headers", "timeout"];
+    }
+    if (mode === "document") {
+        return ["mode", "valueSource", "method", "headers", "data", "timeout"];
+    }
+    return ["mode", "valueSource", "method", "headers", "data", "timeout"];
+}
+
 function normalizeMapping(
     raw: unknown,
     path: string,
@@ -172,6 +195,8 @@ function normalizeMapping(
         walk.repair(path, "mapping must be an object");
         return undefined;
     }
+
+    reportUnrecognizedKeys(raw, mappingKeys(raw.type), path, walk);
 
     const selectors = normalizeSelectors(raw.selectors, `${path}.selectors`, walk);
     if (selectors == null) {
@@ -316,6 +341,15 @@ function normalizeDecoration(
         return undefined;
     }
 
+    reportUnrecognizedKeys(raw, [
+        "wrapElement",
+        "wrapClasses",
+        "wrapCopyElementClasses",
+        "useImmediateParent",
+        "closestSelectors",
+        "overridePosition",
+    ], path, walk);
+
     const wrapClasses = readStringList(raw.wrapClasses, `${path}.wrapClasses`, walk, {
         label: "wrapClasses",
     });
@@ -408,6 +442,8 @@ function normalizeDownloadModes(
             continue;
         }
 
+        reportUnrecognizedKeys(entry, ["name", "steps"], path, walk);
+
         const name = trimToUndefined(entry.name);
         if (name == null) {
             walk.repair(path, "name is required");
@@ -452,6 +488,8 @@ function normalizeDownloadSteps(
             walk.repair(stepPath, "step must be an object");
             continue;
         }
+
+        reportUnrecognizedKeys(entry, downloadStepKeys(entry.mode), stepPath, walk);
 
         if (entry.mode === "download") {
             const downloadStep = normalizeFinalDownloadStep(entry, stepPath, walk);

@@ -13,7 +13,7 @@ type Normalized<T> = {
 type OptsFinding = {
     readonly path: string;
     readonly message: string;
-    readonly kind: "reject" | "repair";
+    readonly kind: "reject" | "repair" | "unknown";
 };
 ```
 
@@ -23,11 +23,16 @@ type OptsFinding = {
 | ---------------------------- | ---------------------------------------------------------------------- |
 | `repair(path, message)`      | Records a fix. The walk may still finish with a `value`.               |
 | `reject(path, message)`      | Records a hard failure. `finish` omits `value`.                        |
+| `unknown(path, message)`     | Records a key outside the contract. `finish` still returns `value` when nothing was rejected. |
 | `finish(value)`              | Returns `{ value, findings }` when there is no reject and `value` is set. Otherwise `{ findings }` only. |
 
-`formatOptsFinding` turns each finding into a loader log line (`\n - path: message`).
+`formatOptsFinding` turns each finding into a loader log line (`\n - path: message`). `formatOptsFindingsOfKind` joins the lines for one kind.
 
-A present `value` with findings is **repaired** and still used. A missing `value` is **rejected**. Owners log repairs as WARN and rejections as FATAL (or skip, for the registry).
+A present `value` with repair findings is **repaired** and still used. A missing `value` is **rejected**. Owners log repairs as WARN and rejections as FATAL (or skip, for the registry). `unknown` findings are WARN at load and do not reject the value. The message includes the dropped value as indented JSON.
+
+`reportUnrecognizedKeys` (`opts-fields.ts`) compares a plain object's keys with an allowlist. Every key outside that list is an `unknown` finding in the same pass. When that value is an object, the walk continues with an empty allowlist. Identity keys (`groups`, `modules`, `mappings`, `headers`, and the `defaults` bag) stay as they are; each entry's value is validated by the walk that already owns it. `defaults.notificationBar` is the closed opts `{ position }`.
+
+Save and Import ask before writing a sanitized integration that would drop `unknown` keys. Cancel leaves storage unchanged.
 
 ## Field helpers
 

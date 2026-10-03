@@ -1,5 +1,5 @@
 import { Logger } from "../utils/logger";
-import { formatOptsFinding } from "../utils/opts/normalization";
+import { OptsFinding, formatOptsFindingsOfKind } from "../utils/opts/normalization";
 import { BuiltinIntegrations } from "./builtin/builtin";
 import { Integration } from "./metadata";
 import { normalizeStoredIntegration } from "./store/normalize-stored-integration";
@@ -22,19 +22,21 @@ export class IntegrationsRegistry {
         const integrations: Integration[] = [];
         for (const integration of BuiltinIntegrations.getIntegrations()) {
             const normalized = normalizeStoredIntegration(integration, integration.name);
+            this.logUnrecognized(normalized.findings, integration.name);
             if (normalized.value == null) {
                 this.log.warn(
                     "Skipping built-in integration:",
                     integration.name,
-                    normalized.findings.map(formatOptsFinding).join(""),
+                    this.blockingFindings(normalized.findings),
                 );
                 continue;
             }
-            if (normalized.findings.length > 0) {
+            const repaired = formatOptsFindingsOfKind(normalized.findings, "repair");
+            if (repaired.length > 0) {
                 this.log.warn(
                     "Built-in integration repaired:",
                     normalized.value.name,
-                    normalized.findings.map(formatOptsFinding).join(""),
+                    repaired,
                 );
             }
             integrations.push(normalized.value);
@@ -64,20 +66,22 @@ export class IntegrationsRegistry {
 
         for (const [mapKey, stored] of Object.entries(UserIntegrationsStore.loadAll())) {
             const normalized = normalizeStoredIntegration(stored, mapKey);
+            this.logUnrecognized(normalized.findings, mapKey);
             if (normalized.value == null) {
                 this.log.warn(
                     "Skipping stored integration:",
                     mapKey,
-                    normalized.findings.map(formatOptsFinding).join(""),
+                    this.blockingFindings(normalized.findings),
                 );
                 continue;
             }
 
-            if (normalized.findings.length > 0) {
+            const repaired = formatOptsFindingsOfKind(normalized.findings, "repair");
+            if (repaired.length > 0) {
                 this.log.warn(
                     "Stored integration repaired:",
                     normalized.value.name,
-                    normalized.findings.map(formatOptsFinding).join(""),
+                    repaired,
                 );
             }
 
@@ -121,5 +125,16 @@ export class IntegrationsRegistry {
     /** Removes a user-stored integration by name. */
     static removeStored(name: string): boolean {
         return UserIntegrationsStore.remove(name);
+    }
+
+    private static logUnrecognized(findings: readonly OptsFinding[], subject: string): void {
+        const unknown = formatOptsFindingsOfKind(findings, "unknown");
+        if (unknown.length > 0) {
+            this.log.warn("Unrecognized option keys:", subject, unknown);
+        }
+    }
+
+    private static blockingFindings(findings: readonly OptsFinding[]): string {
+        return `${formatOptsFindingsOfKind(findings, "reject")}${formatOptsFindingsOfKind(findings, "repair")}`;
     }
 }

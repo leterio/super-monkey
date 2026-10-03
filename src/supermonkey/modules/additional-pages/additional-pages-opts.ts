@@ -1,5 +1,5 @@
 import { Normalized, OptsNormalization } from "../../utils/opts/normalization";
-import { readStringList } from "../../utils/opts/opts-fields";
+import { readStringList, reportUnrecognizedKeys } from "../../utils/opts/opts-fields";
 import { normalizeValueSource } from "../../utils/opts/value-resolver-opts";
 import { isPlainObject } from "../../utils/type";
 import type { ModuleOpts } from "../module";
@@ -73,6 +73,8 @@ export function normalizeAdditionalPagesOpts(raw: unknown): Normalized<Additiona
         return walk.finish<AdditionalPagesOpts>(undefined);
     }
 
+    reportUnrecognizedKeys(raw, ["groups", "contextManager", "pagingStrategy"], "", walk);
+
     if ("contextManager" in raw || "pagingStrategy" in raw) {
         walk.reject(
             "opts",
@@ -102,6 +104,13 @@ export function normalizeAdditionalPagesOpts(raw: unknown): Normalized<Additiona
             walk.repair(groupPath, "binder must be an object");
             continue;
         }
+
+        reportUnrecognizedKeys(
+            binderRaw,
+            ["contextManager", "pagingStrategy", "pageRequestOpts"],
+            groupPath,
+            walk,
+        );
 
         const binderWalk = new OptsNormalization();
         const contextManager = normalizeContextManager(
@@ -142,7 +151,11 @@ export function normalizeAdditionalPagesOpts(raw: unknown): Normalized<Additiona
 
         const normalizedBinder = binderWalk.finish(binder);
         for (const finding of normalizedBinder.findings) {
-            walk.repair(finding.path, finding.message);
+            if (finding.kind === "unknown") {
+                walk.unknown(finding.path, finding.message);
+            } else {
+                walk.repair(finding.path, finding.message);
+            }
         }
 
         if (normalizedBinder.value == null) {
@@ -161,6 +174,29 @@ export function normalizeAdditionalPagesOpts(raw: unknown): Normalized<Additiona
     return walk.finish({ groups });
 }
 
+function contextManagerKeys(type: string): readonly string[] {
+    switch (type) {
+        case "dom":
+            return ["type", "paginatorSelectors", "urlTemplate", "ignoreLastPage"];
+        case "url":
+            return ["type", "urlTemplate"];
+        default:
+            return ["type", "paginatorSelectors", "urlTemplate", "ignoreLastPage"];
+    }
+}
+
+function pagingStrategyKeys(type: string): readonly string[] {
+    switch (type) {
+        case "next-link":
+            return ["type"];
+        case "incremental":
+        case "decremental":
+            return ["type", "numberingStartsFromZero", "numberingLabelStartsFromZero"];
+        default:
+            return ["type", "numberingStartsFromZero", "numberingLabelStartsFromZero"];
+    }
+}
+
 function normalizeContextManager(
     raw: unknown,
     walk: OptsNormalization,
@@ -172,6 +208,7 @@ function normalizeContextManager(
     }
 
     const type = typeof raw.type === "string" ? raw.type.trim() : "";
+    reportUnrecognizedKeys(raw, contextManagerKeys(type), pathPrefix, walk);
     switch (type) {
         case "dom":
             return normalizeDomContextManager(raw, walk, pathPrefix);
@@ -249,6 +286,17 @@ function normalizePaginatorSelectors(
         return undefined;
     }
 
+    reportUnrecognizedKeys(raw, [
+        "rootContainers",
+        "previousSelectors",
+        "nextSelectors",
+        "currentSelectors",
+        "pageIndexes",
+        "urlAttributes",
+        "pageIndexDecoration",
+        "loadedPageClassNames",
+    ], pathPrefix, walk);
+
     const rootContainers = readSelectorField(
         raw.rootContainers,
         `${pathPrefix}.rootContainers`,
@@ -324,6 +372,11 @@ function normalizePageIndexDecoration(
         block = undefined;
     } else {
         block = raw;
+        reportUnrecognizedKeys(raw, [
+            "closestSelectors",
+            "useImmediateParent",
+            "loadedPageClassNames",
+        ], path, walk);
     }
 
     const closestSelectors = block != null
@@ -423,6 +476,7 @@ function normalizePagingStrategy(
     }
 
     const type = typeof raw.type === "string" ? raw.type.trim() : "";
+    reportUnrecognizedKeys(raw, pagingStrategyKeys(type), pathPrefix, walk);
     switch (type) {
         case "next-link":
             return { type: "next-link" };
@@ -535,6 +589,8 @@ function normalizePageRequestOpts(
         return undefined;
     }
 
+    reportUnrecognizedKeys(raw, ["method", "headers"], pathPrefix, walk);
+
     let method: string | undefined;
     if (raw.method != null) {
         if (typeof raw.method === "string" && raw.method.trim().length > 0) {
@@ -598,6 +654,8 @@ function readUrlTemplate(
         }
         return undefined;
     }
+
+    reportUnrecognizedKeys(raw, ["template", "source", "copyPageQueryParams"], path, walk);
 
     const hasTemplate = raw.template != null;
     const hasSource = raw.source != null;

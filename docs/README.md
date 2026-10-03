@@ -45,7 +45,7 @@ Built-in integrations are also authored in TypeScript ([TypeScript integration](
 | **Configuration**        | Provide per-module preferences through the in-page Configuration Menu               |
 | **Coordination**         | Run lifecycle stages and publish events so isolated features react through EventBus |
 
-Shared helpers - **value sources** (read strings from the DOM or URL) and **opts normalization** (reject or repair invalid values) - keep extraction and configuration handling consistent across modules.
+Shared helpers - **value sources** (read strings from the DOM or URL) and **opts normalization** (reject, repair, or report unknown keys) - keep extraction and configuration handling consistent across modules.
 
 ## Where to start
 
@@ -99,7 +99,7 @@ The sections below index every page in this documentation set.
 | --------------------------------------------------- | ----------------------------------------------------- |
 | [Utils overview](./utils/README.md)                 | Shared extraction and other helpers                   |
 | [Value source](./utils/value-source.md)             | Extract strings from the page or tab URL              |
-| [Opts normalization](./utils/opts-normalization.md) | Shared `Normalized<T>` reject and repair contract     |
+| [Opts normalization](./utils/opts-normalization.md) | Shared `Normalized<T>` reject, repair, and unknown contract |
 | [Page filter](./utils/page-filter.md)               | Allow/deny name lists for mapped pages and History    |
 | [Event bus](./utils/event-bus.md)                   | Process-wide pub/sub for lifecycle and feature events |
 | [Value storage](./utils/value-storage.md)           | Typed Tampermonkey reads, writes, and change watchers |

@@ -2,6 +2,8 @@ import { pickTextFile, saveJson } from "../../utils/file";
 import { Logger } from "../../utils/logger";
 import {
     IntegrationValidationIssue,
+    collectUnrecognizedOpts,
+    confirmUnrecognizedOpts,
     validateIntegration,
 } from "../integration-validation";
 import { IntegrationsRegistry } from "../integrations-registry";
@@ -53,7 +55,12 @@ export class IntegrationTransfer {
         const outcome = this.validateDraft(draft);
 
         if (!outcome.ok) {
-            IntegrationEditorModal.openCreateFromImport(draft, outcome.issues);
+            IntegrationEditorModal.openCreateFromImport(draft, outcome.issues, parsed);
+            return;
+        }
+
+        if (!confirmUnrecognizedOpts(collectUnrecognizedOpts(parsed))) {
+            this.log.debug("Import cancelled; unrecognized keys were kept");
             return;
         }
 

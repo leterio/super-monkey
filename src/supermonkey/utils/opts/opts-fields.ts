@@ -1,4 +1,5 @@
 import { trimArray } from "../arrays";
+import { isPlainObject } from "../type";
 import { OptsNormalization } from "./normalization";
 
 /** Options for {@link readStringList}. */
@@ -77,6 +78,42 @@ export function readOptionalFiniteNumber(
 
     walk.repair(path, "must be a finite number");
     return undefined;
+}
+
+/**
+ * Records keys of `raw` that are outside `knownKeys`.
+ * When an unrecognized key's value is an object, that object is walked in the same pass with an empty allowlist.
+ */
+export function reportUnrecognizedKeys(
+    raw: Record<string, unknown>,
+    knownKeys: readonly string[],
+    path: string,
+    walk: OptsNormalization,
+): void {
+    const known = new Set(knownKeys);
+    for (const key of Object.keys(raw)) {
+        if (known.has(key)) {
+            continue;
+        }
+
+        const childPath = path.length > 0 ? `${path}.${key}` : key;
+        const value = raw[key];
+        walk.unknown(childPath, formatUnknownValue(value));
+        if (isPlainObject(value)) {
+            reportUnrecognizedKeys(value, [], childPath, walk);
+        }
+    }
+}
+
+function formatUnknownValue(value: unknown): string {
+    let rendered: string;
+    try {
+        rendered = JSON.stringify(value, null, 2) ?? String(value);
+    } catch {
+        rendered = String(value);
+    }
+
+    return `unrecognized key; value:\n${rendered}`;
 }
 
 function requiredMessage(label: string | undefined): string {

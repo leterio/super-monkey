@@ -1,6 +1,6 @@
 import { sanitizeCssWithAmpersandPlaceholder } from "../../utils/dom/style";
 import { Normalized, OptsNormalization } from "../../utils/opts/normalization";
-import { readStringList } from "../../utils/opts/opts-fields";
+import { readStringList, reportUnrecognizedKeys } from "../../utils/opts/opts-fields";
 import { isPlainObject } from "../../utils/type";
 import type { ModuleOpts } from "../module";
 
@@ -24,6 +24,15 @@ export function normalizeHistoryOpts(raw: unknown): Normalized<HistoryOpts> {
         walk.reject("opts", "options must be an object");
         return walk.finish<HistoryOpts>(undefined);
     }
+
+    reportUnrecognizedKeys(raw, [
+        "group",
+        "newContentSelectors",
+        "recordFilter",
+        "decorateFilter",
+        "viewedStyles",
+        "listedStyles",
+    ], "", walk);
 
     const group = typeof raw.group === "string" ? raw.group.trim() : "";
     if (group.length === 0) {

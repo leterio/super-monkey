@@ -1,5 +1,5 @@
 import { OptsNormalization } from "./normalization";
-import { readStringList } from "./opts-fields";
+import { readStringList, reportUnrecognizedKeys } from "./opts-fields";
 import { safeCompileRegExp } from "../regex";
 import { isPlainObject } from "../type";
 import type {
@@ -31,6 +31,8 @@ export function normalizeValueSource(
         walk.repair(path, "value source must be an object");
         return undefined;
     }
+
+    reportUnrecognizedKeys(raw, valueSourceKeys(raw.source), path, walk);
 
     if (!isValueSourceKind(raw.source)) {
         walk.repair(
@@ -256,6 +258,8 @@ function sanitizeMapper(
         return undefined;
     }
 
+    reportUnrecognizedKeys(raw, mapperKeys(raw.type), path, walk);
+
     if (!isValueMapperType(raw.type)) {
         walk.repair(
             `${path}.type`,
@@ -354,6 +358,11 @@ function sanitizeSortKey(
         return undefined;
     }
 
+    reportUnrecognizedKeys(raw, ["path", "area"], path, walk);
+    if (isPlainObject(raw.area)) {
+        reportUnrecognizedKeys(raw.area, ["width", "height"], `${path}.area`, walk);
+    }
+
     if (raw.path != null && raw.area != null) {
         walk.repair(path, "by must define either path or area");
         return undefined;
@@ -443,6 +452,40 @@ function sanitizeCaptureGroup(
     }
 
     return raw as number;
+}
+
+function valueSourceKeys(source: unknown): readonly string[] {
+    switch (source) {
+        case "attribute":
+            return ["source", "attributes", "selectors", "map"];
+        case "text":
+            return ["source", "selectors", "map"];
+        case "srcset":
+            return ["source", "attributes", "resolution", "selectors", "map"];
+        case "query-param":
+            return ["source", "key", "map"];
+        case "path":
+            return ["source", "map"];
+        default:
+            return ["source", "attributes", "selectors", "map", "resolution", "key"];
+    }
+}
+
+function mapperKeys(type: unknown): readonly string[] {
+    switch (type) {
+        case "extract":
+            return ["type", "regexes", "captureGroup"];
+        case "replace":
+            return ["type", "regexes", "replacement"];
+        case "json_path":
+            return ["type", "path"];
+        case "sort":
+            return ["type", "by", "order"];
+        case "pick":
+            return ["type", "at"];
+        default:
+            return ["type", "regexes", "captureGroup", "replacement", "path", "by", "order", "at"];
+    }
 }
 
 function isValueSourceKind(value: unknown): value is ValueSourceKind {

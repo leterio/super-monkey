@@ -1,5 +1,5 @@
 import { Normalized, OptsNormalization } from "../../utils/opts/normalization";
-import { readStringList } from "../../utils/opts/opts-fields";
+import { readStringList, reportUnrecognizedKeys } from "../../utils/opts/opts-fields";
 import { isPlainObject } from "../../utils/type";
 import type { ModuleOpts } from "../module";
 
@@ -19,6 +19,8 @@ export function normalizeKeyboardNavigationOpts(raw: unknown): Normalized<Keyboa
         walk.reject("opts", "options must be an object");
         return walk.finish<KeyboardNavigationOpts>(undefined);
     }
+
+    reportUnrecognizedKeys(raw, ["previousSelectors", "nextSelectors"], "", walk);
 
     const previousSelectors = readRequiredSelectors(raw.previousSelectors, "previousSelectors", walk);
     const nextSelectors = readRequiredSelectors(raw.nextSelectors, "nextSelectors", walk);
