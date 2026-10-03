@@ -92,7 +92,6 @@ export function normalizeResourcesDownloaderOpts(raw: unknown): Normalized<Resou
 
 /**
  * Drops user keys that are identical to a built-in mapping.
- * Heals opts that previously persisted consolidated builtins from save-time normalization.
  */
 function stripRedundantBuiltinUserMappings(
     userMappings: Record<string, ResourcesMapping>,

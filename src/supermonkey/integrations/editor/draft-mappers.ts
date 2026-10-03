@@ -74,13 +74,17 @@ export type DraftKeyboardNavigationOpts = {
     nextSelectors: string;
 };
 
-export type DraftHistoryOpts = {
-    group: string;
+export type DraftHistoryGroup = {
+    name: string;
     newContentSelectors: string;
     recordFilter: string;
     decorateFilter: string;
     viewedStyles: string;
     listedStyles: string;
+};
+
+export type DraftHistoryOpts = {
+    groups: DraftHistoryGroup[];
 };
 
 export type DraftCustomCssOption = {

@@ -1,5 +1,5 @@
 import { getValue, setValue, watch, type ValueChangeHandler, type ValueWatcher } from "../../utils/value";
-import { isValidComposedId, isValidId, mergeIds } from "../../utils/string";
+import { isValidComposedId, mergeIds } from "../../utils/string";
 import type { Action } from "./action";
 
 export type Configuration = AbstractConfiguration<any> | Action;
@@ -11,8 +11,9 @@ export type ConfigurationOpts = {
 
 /**
  * Stored preference owned by a module instance.
- * Storage key: `{moduleName}::{settingKey}`.
+ * Storage key joins `moduleName` and `key` with `::`.
  * `moduleName` is already `{integration}::{instance}`.
+ * `key` is one id segment or several `::`-separated segments.
  */
 export abstract class AbstractConfiguration<TYPE> {
     readonly key: string;
@@ -55,7 +56,7 @@ export abstract class AbstractConfiguration<TYPE> {
             throw new Error("Module name is required");
         }
 
-        if (!isValidId(key)) {
+        if (!isValidComposedId(key)) {
             throw new Error("Invalid configuration key");
         }
 

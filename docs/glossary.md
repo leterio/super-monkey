@@ -27,7 +27,7 @@ Affirmative definitions for terms used across Super Monkey documentation. Each e
 | **Module instance** | One enabled feature constructed from `integration.modules` with a module key and `opts`. See [Authoring a module](./modules/authoring.md). |
 | **Static module** | A module that loads with every active integration and is **not** listed under `integration.modules` (Notification Bar, Configuration Menu, Integrations Menu). See [Modules overview](./modules/README.md). |
 | **Value source** | A declarative rule for reading a string from the DOM or the tab URL. See [Value source](./utils/value-source.md). |
-| **History** | A feature module (`module: "History"`) that tracks listed and viewed content ids for a Content Manager group. See [History](./modules/history.md). |
+| **History** | A feature module (`module: "History"`) that tracks listed and viewed content ids for Content Manager groups. See [History](./modules/history.md). |
 | **EventBus** | Shared pub/sub used so lifecycle-aware components react without importing each other. Contract: [Event bus](./utils/event-bus.md). See also [Script Lifecycle](./supermonkey/lifecycle.md). |
 | **Component** | Base type for lifecycle-aware pieces that subscribe to EventBus hooks. See [Script Lifecycle](./supermonkey/lifecycle.md). |
 | **INTEGRATION_LOADED** | Lifecycle event published after the matched integration’s Content Manager and modules are ready. See [Script Lifecycle](./supermonkey/lifecycle.md). |

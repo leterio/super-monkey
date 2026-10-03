@@ -512,13 +512,6 @@ function hydratePageIndexDecoration(
         draft.pageIndexClosestSelectors = stringListToCsv(decoration.closestSelectors);
         draft.pageIndexLoadedPageClassNames = stringListToCsv(decoration.loadedPageClassNames);
     }
-
-    if (
-        draft.pageIndexLoadedPageClassNames.length === 0
-        && selectors.loadedPageClassNames != null
-    ) {
-        draft.pageIndexLoadedPageClassNames = stringListToCsv(selectors.loadedPageClassNames);
-    }
 }
 
 function hydrateUrlTemplate(draft: DraftAdditionalPagesBinderFields, raw: unknown): void {

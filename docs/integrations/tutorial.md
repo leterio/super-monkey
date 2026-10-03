@@ -4,7 +4,7 @@
 
 ## Prefer a real site first
 
-**First success (minimum):** one hostname, one Content Manager listing or view, History with **Group** set to that group — skip mapped pages until activation works. Full steps: [Apply the same process to a real site](#apply-the-same-process-to-a-real-site).
+**First success (minimum):** one hostname, one Content Manager listing or view, History with **Content Manager group** set to that group — skip mapped pages until activation works. Full steps: [Apply the same process to a real site](#apply-the-same-process-to-a-real-site).
 
 When your build lists a **Built-in** (`builtin`) row, [§0](#0-learn-from-a-shipped-built-in-first) (Share → optional one-field Edit) is the fastest way to learn Options JSON without inventing selectors.
 
@@ -76,9 +76,9 @@ The group and mapping fields follow the [Content Manager editor field reference]
 
 ## 4. Track and style book history
 
-Add a module instance named `history_books` with module key `History`. In the typed form, set **Group** to `books` and optional **Viewed styles** / **Listed styles**:
+Add a module instance named `history_books` with module key `History`. In the typed form, under **Groups**, set **Content Manager group** to `books` and optional **Viewed styles** / **Listed styles**:
 
-- **Group**: `books`
+- **Content Manager group**: `books`
 - **Viewed styles**: `& { opacity: 0.55; }`
 - **Listed styles**: `& { outline: 2px solid #d6a700; }`
 
@@ -86,9 +86,12 @@ The same Options object (for Share / Import) is:
 
 ```json
 {
-  "group": "books",
-  "viewedStyles": "& { opacity: 0.55; }",
-  "listedStyles": "& { outline: 2px solid #d6a700; }"
+  "groups": {
+    "books": {
+      "viewedStyles": "& { opacity: 0.55; }",
+      "listedStyles": "& { outline: 2px solid #d6a700; }"
+    }
+  }
 }
 ```
 
@@ -205,9 +208,12 @@ Save this object as `atlas_library-sm-integration.json` to import it through the
     "history_books": {
       "module": "History",
       "opts": {
-        "group": "books",
-        "viewedStyles": "& { opacity: 0.55; }",
-        "listedStyles": "& { outline: 2px solid #d6a700; }"
+        "groups": {
+          "books": {
+            "viewedStyles": "& { opacity: 0.55; }",
+            "listedStyles": "& { outline: 2px solid #d6a700; }"
+          }
+        }
       }
     }
   }
@@ -229,13 +235,13 @@ After adapting the Atlas values to a real site (or importing the JSON as-is on a
 
 ## Apply the same process to a real site
 
-**First success (minimum):** one hostname, one Content Manager listing or view, History `{"group":"..."}` — skip mapped pages until activation works. (Also introduced after [§0](#0-learn-from-a-shipped-built-in-first).)
+**First success (minimum):** one hostname, one Content Manager listing or view, History `{"groups":{"books":{}}}` — skip mapped pages until activation works. (Also introduced after [§0](#0-learn-from-a-shipped-built-in-first).)
 
 1. Open the live site and DevTools **Elements** (F12). Identify a stable id attribute or href pattern for one content kind.
 2. Copy CSS selectors for the listing container, entry nodes, and (if needed) the open-item node.
 3. In the editor, set **Matched domains** to the current hostname (one host is enough).
 4. Create a Content Manager **group**, then one **listing** or **view** with those selectors and an ID source.
-5. Add a History instance with **Group** equal to that group name (optional: `viewedStyles` / `listedStyles` with `&`).
+5. Add a History instance and set **Content Manager group** to that group name (optional: `viewedStyles` / `listedStyles` with `&`).
 6. **Save**, reload, confirm **active**, and check Elements for `data-sm-cm-*` / `data-sm-history` when History applies.
 7. When that works, add [Mapped pages](./editor-ui.md#mapped-pages) and **Page filter** if the site needs feed vs detail separation; then optional Additional Pages / Resources Downloader / Keyboard Navigation (Custom CSS / JS Snippets via the Modules panel).
 8. Re-run [Verify the result](#verify-the-result). Use [After Save](./editor-ui.md#after-save-checklist) and [Runtime signals](./runtime-signals.md) when something does not activate.
@@ -294,9 +300,12 @@ export const ATLAS_LIBRARY_INTEGRATION: Integration = {
     history_books: {
       module: "History",
       opts: {
-        group: "books",
-        viewedStyles: "& { opacity: 0.55; }",
-        listedStyles: "& { outline: 2px solid #d6a700; }",
+        groups: {
+          books: {
+            viewedStyles: "& { opacity: 0.55; }",
+            listedStyles: "& { outline: 2px solid #d6a700; }",
+          },
+        },
       },
     },
   },

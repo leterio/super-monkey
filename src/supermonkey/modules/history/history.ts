@@ -1,9 +1,10 @@
 import { expandCssAmpersandPlaceholder } from "../../utils/dom/style";
 import { passesPageFilter } from "../../utils/page-filter";
-import { fillTokens } from "../../utils/string";
+import { fillTokens, isValidId } from "../../utils/string";
 import type {
     EntitiesParsedEventPayload,
     EntityViewedEventPayload,
+    ListedEntity,
 } from "../../content-manager/events";
 import { Action } from "../configuration/action";
 import type { Configuration } from "../configuration/configuration";
@@ -11,44 +12,41 @@ import { ArrayConfiguration } from "../configuration/impl/array";
 import { BooleanConfiguration, BooleanStyleConfiguration } from "../configuration/impl/boolean";
 import { Module } from "../module";
 import { HistoryBackup } from "./history-backup";
-import type { HistoryOpts } from "./history-opts";
+import type { HistoryGroupOpts, HistoryOpts } from "./history-opts";
 import { HistoryStore } from "./history-store";
-import { HAS_NEW_CONTENT_METADATA_KEY, HISTORY_METADATA_KEY, HistoryState } from "./metadata";
+import {
+    HAS_NEW_CONTENT_METADATA_KEY,
+    HISTORY_GROUP_METADATA_KEY,
+    HISTORY_METADATA_KEY,
+    HistoryState,
+} from "./metadata";
 
 const LABEL = "History";
 const DESCRIPTION = "A content history manager that marks listed and viewed content.";
 
 enum CSSMap {
-    hideViewedCSS = `[${HISTORY_METADATA_KEY}="${HistoryState.VIEWED}"]{{keepNewTemplateCSS}} { display: none !important; }`,
-    hideListedCSS = `[${HISTORY_METADATA_KEY}="${HistoryState.LISTED}"]{{keepNewTemplateCSS}} { display: none !important; }`,
+    hideCSS = `{{selector}}{{keepNewTemplateCSS}} { display: none !important; }`,
     keepNewTemplateCSS = `:not([${HAS_NEW_CONTENT_METADATA_KEY}="true"])`,
 }
+
+type HistoryGroupRuntime = {
+    readonly groupKey: string;
+    readonly opts: HistoryGroupOpts;
+    readonly store: HistoryStore;
+    readonly decorateViewedContentConfiguration: BooleanStyleConfiguration | null;
+    readonly decorateListedContentConfiguration: BooleanStyleConfiguration | null;
+    readonly hideViewedContentConfiguration: BooleanStyleConfiguration;
+    readonly hideListedContentConfiguration: BooleanStyleConfiguration;
+};
 
 /**
  * Feature module that tracks listed/viewed content history.
  * Opts must already be normalized by {@link normalizeHistoryOpts} (via ModuleLoader).
  */
 export class History extends Module<HistoryOpts> {
-    private readonly listedHistoryArrayConfiguration = new ArrayConfiguration<string>(
-        this.name,
-        "listedHistory",
-        [],
-        {
-            label: "Listed History",
-            description: "Content IDs that have appeared in listing pages.",
-        },
-    );
-
-    private readonly viewedHistoryArrayConfiguration = new ArrayConfiguration<string>(
-        this.name,
-        "viewedHistory",
-        [],
-        {
-            label: "Viewed History",
-            description: "Content IDs that have been opened.",
-        },
-    );
-
+    private readonly groups: ReadonlyMap<string, HistoryGroupRuntime>;
+    private readonly backup: HistoryBackup;
+    private readonly showEntriesWithNewContentConfiguration: BooleanConfiguration | null;
     private readonly clearHistoryAction = new Action(
         this.name,
         "clearHistory",
@@ -77,92 +75,122 @@ export class History extends Module<HistoryOpts> {
         },
     );
 
-    private readonly store: HistoryStore;
-    private readonly backup: HistoryBackup;
-    private readonly newContentSelectors: readonly string[];
-    private readonly viewedStyles: string;
-    private readonly listedStyles: string;
-    private readonly decorateViewedContentConfiguration: BooleanStyleConfiguration | null;
-    private readonly decorateListedContentConfiguration: BooleanStyleConfiguration | null;
-    private readonly showEntriesWithNewContentConfiguration: BooleanConfiguration | null;
-    private readonly hideViewedContentConfiguration: BooleanStyleConfiguration;
-    private readonly hideListedContentConfiguration: BooleanStyleConfiguration;
-
     constructor(name: string, opts: HistoryOpts) {
         super(name, opts);
 
-        this.viewedStyles = opts.viewedStyles ?? "";
-        this.listedStyles = opts.listedStyles ?? "";
-        this.newContentSelectors = opts.newContentSelectors ?? [];
-        this.decorateViewedContentConfiguration = this.viewedStyles.length > 0
-            ? new BooleanStyleConfiguration(this.name, "decorateViewedContent", true, {
-                label: "Decorate Viewed Content",
-                description: "Decorate viewed entries with the configured viewed styles.",
-                css: (enabled) => this.buildViewedDecorationCss(enabled),
-            })
-            : null;
-        this.decorateListedContentConfiguration = this.listedStyles.length > 0
-            ? new BooleanStyleConfiguration(this.name, "decorateListedContent", true, {
-                label: "Decorate Listed Content",
-                description: "Decorate listed entries with the configured listed styles.",
-                css: (enabled) => this.buildListedDecorationCss(enabled),
-            })
-            : null;
+        const groupEntries = Object.entries(opts.groups);
+        const labelGroup = groupEntries.length > 1;
+        const hasNewContentSelectors = groupEntries.some(
+            ([, group]) => (group.newContentSelectors?.length ?? 0) > 0,
+        );
 
-        this.showEntriesWithNewContentConfiguration = this.newContentSelectors.length > 0
+        this.showEntriesWithNewContentConfiguration = hasNewContentSelectors
             ? new BooleanConfiguration(this.name, "showEntriesWithNewContent", true, {
                 label: "Keep new content visible when hiding",
                 description:
-                    "When Hide Viewed Content or Hide Listed Content is on, still show entries marked with new content.",
+                    "When a group's Hide Viewed Content or Hide Listed Content is on, still show entries marked with new content.",
             })
             : null;
 
-        this.hideViewedContentConfiguration = new BooleanStyleConfiguration(
-            this.name,
-            "hideViewedContent",
-            false,
-            {
-                label: "Hide Viewed Content",
-                description:
-                    "Hide viewed entries. Turning off may leave already-removed entries until the page reloads.",
-                css: () => fillTokens(CSSMap.hideViewedCSS, {
-                    keepNewTemplateCSS: this.shouldKeepNewContentVisible()
-                        ? CSSMap.keepNewTemplateCSS
-                        : "",
-                }),
-                triggeredBy: this.showEntriesWithNewContentConfiguration != null
-                    ? [this.showEntriesWithNewContentConfiguration]
-                    : [],
-            },
+        const hideTriggers = this.showEntriesWithNewContentConfiguration != null
+            ? [this.showEntriesWithNewContentConfiguration]
+            : [];
+
+        this.groups = new Map(
+            groupEntries.map(([groupKey, groupOpts]) => {
+                const scopeId = History.toConfigurationGroupId(groupKey);
+                const listed = new ArrayConfiguration<string>(
+                    this.name,
+                    `listedHistory::${scopeId}`,
+                    [],
+                );
+                const viewed = new ArrayConfiguration<string>(
+                    this.name,
+                    `viewedHistory::${scopeId}`,
+                    [],
+                );
+
+                const decorateViewedContentConfiguration = History.hasStyles(groupOpts.viewedStyles)
+                    ? new BooleanStyleConfiguration(
+                        this.name,
+                        `decorateViewedContent::${scopeId}`,
+                        true,
+                        {
+                            label: History.controlLabel("Decorate Viewed Content", groupKey, labelGroup),
+                            description: "Decorate viewed entries with this group's viewed styles.",
+                            css: (enabled) => History.buildGroupDecorationCss(
+                                enabled,
+                                groupOpts.viewedStyles,
+                                HistoryState.VIEWED,
+                                groupKey,
+                            ),
+                        },
+                    )
+                    : null;
+                const decorateListedContentConfiguration = History.hasStyles(groupOpts.listedStyles)
+                    ? new BooleanStyleConfiguration(
+                        this.name,
+                        `decorateListedContent::${scopeId}`,
+                        true,
+                        {
+                            label: History.controlLabel("Decorate Listed Content", groupKey, labelGroup),
+                            description: "Decorate listed entries with this group's listed styles.",
+                            css: (enabled) => History.buildGroupDecorationCss(
+                                enabled,
+                                groupOpts.listedStyles,
+                                HistoryState.LISTED,
+                                groupKey,
+                            ),
+                        },
+                    )
+                    : null;
+                const hideViewedContentConfiguration = new BooleanStyleConfiguration(
+                    this.name,
+                    `hideViewedContent::${scopeId}`,
+                    false,
+                    {
+                        label: History.controlLabel("Hide Viewed Content", groupKey, labelGroup),
+                        description:
+                            "Hide viewed entries in this group. Turning off may leave already-removed entries until the page reloads.",
+                        css: () => this.buildGroupHideCss(HistoryState.VIEWED, groupKey),
+                        triggeredBy: hideTriggers,
+                    },
+                );
+                const hideListedContentConfiguration = new BooleanStyleConfiguration(
+                    this.name,
+                    `hideListedContent::${scopeId}`,
+                    false,
+                    {
+                        label: History.controlLabel("Hide Listed Content", groupKey, labelGroup),
+                        description:
+                            "Hide listed entries in this group. Turning off may leave already-removed entries until the page reloads.",
+                        css: () => this.buildGroupHideCss(HistoryState.LISTED, groupKey),
+                        triggeredBy: hideTriggers,
+                    },
+                );
+
+                return [
+                    groupKey,
+                    {
+                        groupKey,
+                        opts: groupOpts,
+                        store: new HistoryStore(this.name, scopeId, listed, viewed, this.log),
+                        decorateViewedContentConfiguration,
+                        decorateListedContentConfiguration,
+                        hideViewedContentConfiguration,
+                        hideListedContentConfiguration,
+                    },
+                ];
+            }),
         );
 
-        this.hideListedContentConfiguration = new BooleanStyleConfiguration(
-            this.name,
-            "hideListedContent",
-            false,
-            {
-                label: "Hide Listed Content",
-                description:
-                    "Hide listed entries. Turning off may leave already-removed entries until the page reloads.",
-                css: () => fillTokens(CSSMap.hideListedCSS, {
-                    keepNewTemplateCSS: this.shouldKeepNewContentVisible()
-                        ? CSSMap.keepNewTemplateCSS
-                        : "",
-                }),
-                triggeredBy: this.showEntriesWithNewContentConfiguration != null
-                    ? [this.showEntriesWithNewContentConfiguration]
-                    : [],
-            },
-        );
-
-        this.store = new HistoryStore(
-            this.name,
-            this.listedHistoryArrayConfiguration,
-            this.viewedHistoryArrayConfiguration,
+        this.backup = new HistoryBackup(
+            new Map(Array.from(this.groups.values(), (group) => [group.groupKey, group.store])),
             this.log,
         );
-        this.backup = new HistoryBackup(this.store, this.log);
-        this.store.watchRemoteFlushes();
+        for (const group of this.groups.values()) {
+            group.store.watchRemoteFlushes();
+        }
     }
 
     override get title(): string {
@@ -174,125 +202,136 @@ export class History extends Module<HistoryOpts> {
     }
 
     override get configurations(): Configuration[] {
-        return [
-            ...(this.decorateViewedContentConfiguration != null
-                ? [this.decorateViewedContentConfiguration]
-                : []),
-            ...(this.decorateListedContentConfiguration != null
-                ? [this.decorateListedContentConfiguration]
-                : []),
-            this.hideViewedContentConfiguration,
-            this.hideListedContentConfiguration,
-            ...(this.showEntriesWithNewContentConfiguration != null
-                ? [this.showEntriesWithNewContentConfiguration]
-                : []),
+        const values: Configuration[] = [];
+        for (const group of this.groups.values()) {
+            if (group.decorateViewedContentConfiguration != null) {
+                values.push(group.decorateViewedContentConfiguration);
+            }
+            if (group.decorateListedContentConfiguration != null) {
+                values.push(group.decorateListedContentConfiguration);
+            }
+            values.push(
+                group.hideViewedContentConfiguration,
+                group.hideListedContentConfiguration,
+            );
+        }
+        if (this.showEntriesWithNewContentConfiguration != null) {
+            values.push(this.showEntriesWithNewContentConfiguration);
+        }
+        values.push(
             this.clearHistoryAction,
             this.backupHistoryAction,
             this.restoreHistoryAction,
-        ];
-    }
-
-    markAsViewed(contentId: string): void {
-        if (contentId == null || contentId.length === 0) {
-            return;
-        }
-
-        if (this.store.viewed.has(contentId)) {
-            return;
-        }
-
-        this.log.debug("Marking content as viewed:", contentId);
-        this.store.viewed.addToSession(contentId);
-        this.store.viewed.scheduleFlush();
+        );
+        return values;
     }
 
     override async onEntitiesParsed(data: EntitiesParsedEventPayload): Promise<void> {
         await super.onEntitiesParsed(data);
         this.log.debug("Handling entities parsed ...");
 
-        const addressableContents = data.entities
-            .get(this.opts.group)
-            ?.filter((content) => content.id.length > 0 && content.element != null);
-        if (addressableContents == null || addressableContents.length === 0) {
-            return;
-        }
-
-        const listedHistory = this.store.listed.toPersistedSet();
-        const viewedHistory = this.store.viewed.toPersistedSet();
-        const shouldHideViewedContent = this.hideViewedContentConfiguration.value;
-        const shouldHideListedContent = this.hideListedContentConfiguration.value;
-        const shouldKeepNewContentVisible = this.shouldKeepNewContentVisible();
-        this.log.debug("Listed history entries:", listedHistory.size, "Viewed:", viewedHistory.size);
-
-        let hasNewListedEntries = false;
-
-        for (const content of addressableContents) {
-            const contentId = content.id;
-            const canDecorate = History.passesNameFilter(this.opts.decorateFilter, content.name);
-            const canRecord = History.passesNameFilter(this.opts.recordFilter, content.name);
-
-            if (!canDecorate && !canRecord) {
+        for (const [groupKey, entities] of data.entities) {
+            const group = this.groups.get(groupKey);
+            if (group == null) {
                 continue;
             }
 
-            const hasNewContent = canDecorate
-                ? this.applyHasNewContentMetadata(content.element)
-                : false;
-            const bypassHide = hasNewContent && shouldKeepNewContentVisible;
-
-            if (
-                this.store.viewed.hasInSession(contentId)
-                || viewedHistory.has(contentId)
-            ) {
-                if (canDecorate) {
-                    content.element.setAttribute(HISTORY_METADATA_KEY, HistoryState.VIEWED);
-                    if (shouldHideViewedContent && !bypassHide) {
-                        content.hide = true;
-                    }
-                }
-            } else if (
-                this.store.listed.hasInSession(contentId)
-                || listedHistory.has(contentId)
-            ) {
-                if (canDecorate) {
-                    content.element.setAttribute(HISTORY_METADATA_KEY, HistoryState.LISTED);
-                    if (shouldHideListedContent && !bypassHide) {
-                        content.hide = true;
-                    }
-                }
-            } else {
-                if (canDecorate) {
-                    content.element.setAttribute(HISTORY_METADATA_KEY, HistoryState.UNREAD);
-                }
-                if (canRecord) {
-                    this.store.listed.addToSession(contentId);
-                    hasNewListedEntries = true;
-                }
-            }
-        }
-
-        if (hasNewListedEntries) {
-            this.store.listed.scheduleFlush();
+            this.handleParsedGroup(group, entities);
         }
     }
 
     override async onEntityViewed(data: EntityViewedEventPayload): Promise<void> {
         await super.onEntityViewed(data);
 
-        if (data.entity.group !== this.opts.group) {
+        const group = this.groups.get(data.entity.group);
+        if (group == null || data.entity.id.length === 0) {
             return;
         }
 
-        if (data.entity.id.length === 0) {
-            return;
-        }
-
-        if (!History.passesNameFilter(this.opts.recordFilter, data.entity.name)) {
+        if (!History.passesNameFilter(group.opts.recordFilter, data.entity.name)) {
             return;
         }
 
         this.log.debug("Handling entity viewed for group:", data.entity.group, "id:", data.entity.id);
-        this.markAsViewed(data.entity.id);
+        this.markAsViewed(group.store, data.entity.id);
+    }
+
+    private handleParsedGroup(group: HistoryGroupRuntime, entities: readonly ListedEntity[]): void {
+        const addressableContents = entities.filter(
+            (content) => content.id.length > 0 && content.element != null,
+        );
+        if (addressableContents.length === 0) {
+            return;
+        }
+
+        const listedHistory = group.store.listed.toPersistedSet();
+        const viewedHistory = group.store.viewed.toPersistedSet();
+        const shouldHideViewedContent = group.hideViewedContentConfiguration.value;
+        const shouldHideListedContent = group.hideListedContentConfiguration.value;
+        const shouldKeepNewContentVisible = this.shouldKeepNewContentVisible();
+        this.log.debug(
+            "Listed history entries:",
+            listedHistory.size,
+            "Viewed:",
+            viewedHistory.size,
+            "Group:",
+            group.groupKey,
+        );
+
+        let hasNewListedEntries = false;
+
+        for (const content of addressableContents) {
+            const contentId = content.id;
+            const canDecorate = History.passesNameFilter(group.opts.decorateFilter, content.name);
+            const canRecord = History.passesNameFilter(group.opts.recordFilter, content.name);
+
+            if (!canDecorate && !canRecord) {
+                continue;
+            }
+
+            const hasNewContent = canDecorate
+                ? this.applyHasNewContentMetadata(content.element, group.opts.newContentSelectors)
+                : false;
+            const bypassHide = hasNewContent && shouldKeepNewContentVisible;
+
+            if (group.store.viewed.hasInSession(contentId) || viewedHistory.has(contentId)) {
+                if (canDecorate) {
+                    History.markHistoryState(content.element, group.groupKey, HistoryState.VIEWED);
+                    if (shouldHideViewedContent && !bypassHide) {
+                        content.hide = true;
+                    }
+                }
+            } else if (group.store.listed.hasInSession(contentId) || listedHistory.has(contentId)) {
+                if (canDecorate) {
+                    History.markHistoryState(content.element, group.groupKey, HistoryState.LISTED);
+                    if (shouldHideListedContent && !bypassHide) {
+                        content.hide = true;
+                    }
+                }
+            } else {
+                if (canDecorate) {
+                    History.markHistoryState(content.element, group.groupKey, HistoryState.UNREAD);
+                }
+                if (canRecord) {
+                    group.store.listed.addToSession(contentId);
+                    hasNewListedEntries = true;
+                }
+            }
+        }
+
+        if (hasNewListedEntries) {
+            group.store.listed.scheduleFlush();
+        }
+    }
+
+    private markAsViewed(store: HistoryStore, contentId: string): void {
+        if (contentId.length === 0 || store.viewed.has(contentId)) {
+            return;
+        }
+
+        this.log.debug("Marking content as viewed:", contentId);
+        store.viewed.addToSession(contentId);
+        store.viewed.scheduleFlush();
     }
 
     private async onClearHistoryClicked(): Promise<void> {
@@ -311,30 +350,58 @@ export class History extends Module<HistoryOpts> {
         return this.showEntriesWithNewContentConfiguration?.value === true;
     }
 
-    private buildViewedDecorationCss(enabled: boolean): string | null {
-        if (enabled !== true || this.viewedStyles.length === 0) {
+    private buildGroupHideCss(state: HistoryState, groupKey: string): string {
+        return fillTokens(CSSMap.hideCSS, {
+            selector: History.historyStateSelector(state, groupKey),
+            keepNewTemplateCSS: this.shouldKeepNewContentVisible()
+                ? CSSMap.keepNewTemplateCSS
+                : "",
+        });
+    }
+
+    private static buildGroupDecorationCss(
+        enabled: boolean,
+        styles: string | undefined,
+        state: HistoryState,
+        groupKey: string,
+    ): string | null {
+        if (enabled !== true || !History.hasStyles(styles)) {
             return null;
         }
 
         return expandCssAmpersandPlaceholder(
-            this.viewedStyles,
-            `[${HISTORY_METADATA_KEY}="${HistoryState.VIEWED}"]`,
+            styles,
+            History.historyStateSelector(state, groupKey),
         );
     }
 
-    private buildListedDecorationCss(enabled: boolean): string | null {
-        if (enabled !== true || this.listedStyles.length === 0) {
-            return null;
-        }
-
-        return expandCssAmpersandPlaceholder(
-            this.listedStyles,
-            `[${HISTORY_METADATA_KEY}="${HistoryState.LISTED}"]`,
-        );
+    private static markHistoryState(
+        element: HTMLElement,
+        groupKey: string,
+        state: HistoryState,
+    ): void {
+        element.setAttribute(HISTORY_METADATA_KEY, state);
+        element.setAttribute(HISTORY_GROUP_METADATA_KEY, groupKey);
     }
 
-    private applyHasNewContentMetadata(element: HTMLElement): boolean {
-        const hasNewContent = this.matchesNewContentSelectors(element);
+    private static historyStateSelector(state: HistoryState, groupKey: string): string {
+        const group = CSS.escape(groupKey);
+        return `[${HISTORY_METADATA_KEY}="${state}"][${HISTORY_GROUP_METADATA_KEY}="${group}"]`;
+    }
+
+    private static controlLabel(base: string, groupKey: string, labelGroup: boolean): string {
+        return labelGroup ? `${base} — ${groupKey}` : base;
+    }
+
+    private static hasStyles(styles: string | undefined): styles is string {
+        return styles != null && styles.length > 0;
+    }
+
+    private applyHasNewContentMetadata(
+        element: HTMLElement,
+        selectors: readonly string[] | undefined,
+    ): boolean {
+        const hasNewContent = History.matchesNewContentSelectors(element, selectors);
         if (hasNewContent) {
             element.setAttribute(HAS_NEW_CONTENT_METADATA_KEY, "true");
         } else {
@@ -343,12 +410,15 @@ export class History extends Module<HistoryOpts> {
         return hasNewContent;
     }
 
-    private matchesNewContentSelectors(element: HTMLElement): boolean {
-        if (this.newContentSelectors.length === 0) {
+    private static matchesNewContentSelectors(
+        element: HTMLElement,
+        selectors: readonly string[] | undefined,
+    ): boolean {
+        if (selectors == null || selectors.length === 0) {
             return false;
         }
 
-        return this.newContentSelectors.some(
+        return selectors.some(
             (selector) => element.matches(selector) || element.querySelector(selector) != null,
         );
     }
@@ -358,5 +428,11 @@ export class History extends Module<HistoryOpts> {
         name: string,
     ): boolean {
         return passesPageFilter(filter, [name]);
+    }
+
+    private static toConfigurationGroupId(groupKey: string): string {
+        return isValidId(groupKey) ? groupKey : Array.from(groupKey, (character) =>
+            character.codePointAt(0)!.toString(16),
+        ).join("_");
     }
 }

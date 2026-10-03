@@ -69,7 +69,7 @@ Enter these values in editor order to build the Atlas Library integration:
 8. In **Modules**, add the History instance:
    - **Instance name**: `history_books`
    - **Module key**: `History`
-   - **Group**: `books`
+   - Under **Groups**, set **Content Manager group** to `books`
    - **Viewed styles**: `& { opacity: 0.55; }`
    - **Listed styles**: `& { outline: 2px solid #d6a700; }`
 9. Select **Save**, reload the page, and verify that Atlas Library cards receive the expected History styling.
@@ -183,7 +183,9 @@ Saving an edited built-in creates a stored override. **Reset** or **Restore defa
     "history_main": {
       "module": "History",
       "opts": {
-        "group": "posts"
+        "groups": {
+          "posts": {}
+        }
       }
     }
   }

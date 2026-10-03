@@ -73,15 +73,7 @@ export function normalizeAdditionalPagesOpts(raw: unknown): Normalized<Additiona
         return walk.finish<AdditionalPagesOpts>(undefined);
     }
 
-    reportUnrecognizedKeys(raw, ["groups", "contextManager", "pagingStrategy"], "", walk);
-
-    if ("contextManager" in raw || "pagingStrategy" in raw) {
-        walk.reject(
-            "opts",
-            'flat contextManager/pagingStrategy is not supported; use groups.<contentManagerGroupKey>',
-        );
-        return walk.finish<AdditionalPagesOpts>(undefined);
-    }
+    reportUnrecognizedKeys(raw, ["groups"], "", walk);
 
     if (!isPlainObject(raw.groups)) {
         walk.reject("groups", "must be an object with at least one usable group binder");
@@ -294,7 +286,6 @@ function normalizePaginatorSelectors(
         "pageIndexes",
         "urlAttributes",
         "pageIndexDecoration",
-        "loadedPageClassNames",
     ], pathPrefix, walk);
 
     const rootContainers = readSelectorField(
@@ -340,10 +331,8 @@ function normalizePaginatorSelectors(
 
     const pageIndexDecoration = normalizePageIndexDecoration(
         raw.pageIndexDecoration,
-        raw.loadedPageClassNames,
         walk,
         `${pathPrefix}.pageIndexDecoration`,
-        `${pathPrefix}.loadedPageClassNames`,
     );
 
     return {
@@ -359,10 +348,8 @@ function normalizePaginatorSelectors(
 
 function normalizePageIndexDecoration(
     raw: unknown,
-    legacyLoadedPageClassNames: unknown,
     walk: OptsNormalization,
     path: string,
-    legacyPath: string,
 ): PageIndexDecoration | undefined {
     let block: Record<string, unknown> | undefined;
     if (raw == null) {
@@ -391,7 +378,7 @@ function normalizePageIndexDecoration(
         );
     }
 
-    let loadedPageClassNames = block != null
+    const loadedPageClassNames = block != null
         ? readStringList(
             block.loadedPageClassNames,
             `${path}.loadedPageClassNames`,
@@ -399,21 +386,6 @@ function normalizePageIndexDecoration(
             { label: "class names", onEmpty: "repair" },
         )
         : undefined;
-
-    const legacyClasses = readStringList(
-        legacyLoadedPageClassNames,
-        legacyPath,
-        walk,
-        { label: "class names", onEmpty: "repair" },
-    );
-    if (legacyClasses != null) {
-        if (loadedPageClassNames == null) {
-            walk.repair(legacyPath, "folded into pageIndexDecoration.loadedPageClassNames");
-            loadedPageClassNames = legacyClasses;
-        } else {
-            walk.repair(legacyPath, "ignored because pageIndexDecoration.loadedPageClassNames is set");
-        }
-    }
 
     if (
         !useImmediateParent

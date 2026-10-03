@@ -29,7 +29,7 @@ Under `integration.modules`, each entry has an instance id (record key), a `modu
 modules: {
   history_books: {
     module: "History",
-    opts: { group: "books" },
+    opts: { groups: { books: {} } },
   },
 },
 ```

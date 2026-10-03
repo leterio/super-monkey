@@ -361,6 +361,7 @@ Super Monkey and feature modules expose stable attributes you can target from `s
 | Attribute                 | Set by               | Values / meaning                                       |
 | ------------------------- | -------------------- | ------------------------------------------------------ |
 | `data-sm-history`         | History              | `viewed`, `listed`, or `unread`                        |
+| `data-sm-history-group`   | History              | Content Manager group key that owns the history marker |
 | `data-sm-has-new-content` | History              | `"true"` when a new content selector matched           |
 | `data-sm-cm-viewed`       | Content Manager      | Space-separated group keys on view elements            |
 | `data-sm-cm-listed`       | Content Manager      | Space-separated group keys on listing entries          |
