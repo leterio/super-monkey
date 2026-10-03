@@ -88,6 +88,7 @@ export type ResourcesMappingLeaf = BaseResourcesMapping & {
     readonly urlSources: (string | ValueSource)[];
     /** Download mode name. Defaults to `"download"`. */
     readonly downloadMode?: string;
+    readonly sendReferer?: boolean;
 };
 
 /** Mapping that matches a container and scans nested mapping keys inside it. */
@@ -125,6 +126,7 @@ export type DocumentDownloadStep = {
     readonly headers?: Record<string, string>;
     readonly data?: DownloadRequestData;
     readonly timeout?: number;
+    readonly sendReferer?: boolean;
 };
 
 /** Final transfer step that saves the current branch URL via `GM_download`. */
@@ -132,6 +134,7 @@ export type FinalDownloadStep = {
     readonly mode: "download";
     readonly headers?: Record<string, string>;
     readonly timeout?: number;
+    readonly sendReferer?: boolean;
 };
 
 /** One step in a custom download pipeline. The last step must be `download`. */

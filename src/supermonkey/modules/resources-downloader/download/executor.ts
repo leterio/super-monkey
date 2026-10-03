@@ -1,11 +1,13 @@
 import { requireDocumentResponse } from "../../../utils/dom/document";
 import { Logger } from "../../../utils/logger";
-import { download, HttpProgress, httpRequest } from "../../../utils/network";
+import { download, HttpProgress, httpRequest, withDefaultReferer } from "../../../utils/network";
 import { normalizeUrl } from "../../../utils/urls";
 import { resolveValue } from "../../../utils/value-resolver";
 import { DocumentDownloadStep, DownloadRequestData, FinalDownloadStep } from "../metadata";
 
 export type DownloadFetchOpts = {
+    refererPageUrl: string;
+    sendReferer: boolean;
     method?: string;
     headers?: Record<string, string>;
     data?: string | FormData | Blob;
@@ -50,18 +52,18 @@ export class DownloadExecutor {
         return params.toString();
     }
 
-    async fetchDocument(url: string, opts?: DownloadFetchOpts): Promise<DocumentFetchResult> {
+    async fetchDocument(url: string, opts: DownloadFetchOpts): Promise<DocumentFetchResult> {
         const normalizedUrl = normalizeUrl(url);
         this.log.debug("Fetching document", normalizedUrl);
 
         const response = await httpRequest(normalizedUrl, {
-            method: opts?.method ?? "GET",
-            headers: opts?.headers,
-            data: opts?.data,
+            method: opts.method ?? "GET",
+            headers: DownloadExecutor.headersFor(opts.headers, opts.refererPageUrl, opts.sendReferer),
+            data: opts.data,
             responseType: "document",
-            timeout: opts?.timeout,
-            signal: opts?.signal,
-            onprogress: opts?.onprogress,
+            timeout: opts.timeout,
+            signal: opts.signal,
+            onprogress: opts.onprogress,
         });
 
         return {
@@ -74,10 +76,13 @@ export class DownloadExecutor {
         url: string,
         element: HTMLElement,
         step: DocumentDownloadStep,
+        refererPageUrl: string,
         onprogress?: (progress: HttpProgress) => void,
         signal?: AbortSignal,
     ): Promise<DocumentFetchResult> {
         return this.fetchDocument(url, {
+            refererPageUrl,
+            sendReferer: step.sendReferer !== false,
             method: step.method,
             headers: step.headers,
             data: DownloadExecutor.buildRequestData(step.data, element),
@@ -89,6 +94,8 @@ export class DownloadExecutor {
 
     downloadUrl(
         url: string,
+        refererPageUrl: string,
+        sendReferer: boolean,
         step?: FinalDownloadStep,
         onprogress?: (progress: HttpProgress) => void,
         signal?: AbortSignal,
@@ -97,10 +104,18 @@ export class DownloadExecutor {
         this.log.debug("Downloading", normalizedUrl);
 
         return download(normalizedUrl, {
-            headers: step?.headers,
+            headers: DownloadExecutor.headersFor(step?.headers, refererPageUrl, sendReferer),
             timeout: step?.timeout,
             signal,
             onprogress,
         });
+    }
+
+    private static headersFor(
+        headers: Record<string, string> | undefined,
+        refererPageUrl: string,
+        sendReferer: boolean,
+    ): Record<string, string> | undefined {
+        return sendReferer ? withDefaultReferer(headers, refererPageUrl) : headers;
     }
 }

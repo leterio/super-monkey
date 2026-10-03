@@ -188,6 +188,7 @@ Matches elements that each represent **one** downloadable resource.
 | `downloadMode`     | no       | Mode name (defaults to `"download"`)                                                                                                                                              |
 | `pageFilter`       | no       | Optional mapped-page names that gate this mapping. Empty/omitted runs on every page. See [Page filter](#page-filter)                                                              |
 | `ignoreDecoration` | no       | When `true`, skip the download button for this mapping                                                                                                                            |
+| `sendReferer`      | no       | When `false`, built-in mode `"download"` does not add a `Referer` header. Omitted sends `Referer` set to the open tab's origin. Custom modes use each step's `sendReferer`          |
 | `decoration`       | no       | Where/how to attach the button - see [Decoration](#decoration)                                                                                                                    |
 
 ## Collection mapping
@@ -246,16 +247,18 @@ Named pipelines in `downloadModes`. Leaf `downloadMode` selects which pipeline r
 | `name`  | Unique mode id (**must not** collide with `"download"`)     |
 | `steps` | Non-empty list of document steps, ending in a download step |
 
-**Document step** - `{ mode: "document", valueSource, method?, headers?, data?, timeout? }`
+**Document step** - `{ mode: "document", valueSource, method?, headers?, data?, timeout?, sendReferer? }`
 
 - Fetches an intermediate page (`GM_xmlhttpRequest`), parses HTML, resolves `valueSource` against that document.
 - `valueSource` must be an **element** source (`attribute`, `text`, or `srcset`) with at least one `selectors` entry. `query-param` and `path` are rejected for document steps.
 - Relative URLs resolve against the fetched document’s final URL.
 - Step `data` fields that are ValueSource objects resolve against the **live leaf** element before the request.
+- When `sendReferer` is omitted or `true`, sends `Referer` set to the origin of the previous page. The first document step takes that origin from the open tab. A later document step takes it from the final URL of the previous document response. `sendReferer: false` leaves that header off. A `Referer` entry in `headers` is the value sent for that step.
 
-**Download step** - `{ mode: "download", headers?, timeout? }`
+**Download step** - `{ mode: "download", headers?, timeout?, sendReferer? }`
 
 - Must be the **last** step. If the last step is not `download`, normalization appends `{ mode: "download" }`. A `download` step anywhere else drops the mode.
+- Built-in mode `"download"` follows the leaf's `sendReferer`. A download step follows its own `sendReferer`. When that value is omitted or `true`, the request sends `Referer` set to the origin of the previous page: the open tab for built-in mode `"download"`, and the final URL of the last document response after document steps. `sendReferer: false` leaves that header off. A `Referer` entry in `headers` is the value sent for that step.
 
 | Mode         | Behavior                                                                            |
 | ------------ | ----------------------------------------------------------------------------------- |
@@ -345,7 +348,7 @@ Notification Bar: a `ProgressMenuEntry` exposes download progress plus **Downloa
 | Outcome    | When                                                                                                                                                                                                                                                                              |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Reject** | Raw opts are not an object; `mappings` missing/empty; no usable user mappings remain; no scannable **user entry points** (builtins alone are not enough).                                                                                                                         |
-| **Repair** | Bad mappings or download modes dropped; empty selectors / urlSources / children / `pageFilter` fixed or dropped; unknown `downloadMode` drops the leaf; cycles and dangling collection children removed; user keys identical to a built-in mapping removed; mid-pipeline `download` steps drop the mode; missing final `download` step is appended. |
+| **Repair** | Bad mappings or download modes dropped; empty selectors / urlSources / children / `pageFilter` fixed or dropped; unknown `downloadMode` drops the leaf; cycles and dangling collection children removed; user keys identical to a built-in mapping removed; mid-pipeline `download` steps drop the mode; missing final `download` step is appended; a non-boolean `sendReferer` is dropped. |
 
 The loader constructs `ResourcesDownloader` with the cleaned `value`. Repair findings log as WARN (`Module options were repaired:`). A missing `value` logs FATAL for that instance.
 

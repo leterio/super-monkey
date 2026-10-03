@@ -211,7 +211,9 @@ Each value under `groups` is a binder:
 | ----------------- | -------- | ------------------------------------------------------------------------------- |
 | `contextManager`  | yes      | Discriminated object: `type` `"dom"` or `"url"` (see below)                     |
 | `pagingStrategy`  | yes      | Discriminated object: `type` `"next-link"`, `"incremental"`, or `"decremental"` |
-| `pageRequestOpts` | no       | Optional HTTP overrides for this group's requests (`method`, `headers`)         |
+| `pageRequestOpts` | no       | Optional HTTP overrides for this group's requests (`method`, `headers`, `sendReferer`) |
+
+Each page request sends `Referer` set to the open tab's origin, including requests for later pager pages, when `sendReferer` is omitted or `true`. `sendReferer: false` leaves that header off. A `Referer` entry in `headers` is the value sent for that group.
 
 How many pages to load and delays are **user** preferences in the Configuration Menu - see [Runtime configurations](#runtime-configurations). They are not integration opts.
 

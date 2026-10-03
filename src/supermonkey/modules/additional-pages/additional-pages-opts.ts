@@ -561,7 +561,7 @@ function normalizePageRequestOpts(
         return undefined;
     }
 
-    reportUnrecognizedKeys(raw, ["method", "headers"], pathPrefix, walk);
+    reportUnrecognizedKeys(raw, ["method", "headers", "sendReferer"], pathPrefix, walk);
 
     let method: string | undefined;
     if (raw.method != null) {
@@ -591,13 +591,19 @@ function normalizePageRequestOpts(
         }
     }
 
-    if (method == null && headers == null) {
+    if (raw.sendReferer != null && typeof raw.sendReferer !== "boolean") {
+        walk.repair(`${pathPrefix}.sendReferer`, "must be a boolean");
+    }
+    const omitReferer = raw.sendReferer === false;
+
+    if (method == null && headers == null && !omitReferer) {
         return undefined;
     }
 
     return {
         ...(method != null ? { method } : {}),
         ...(headers != null ? { headers } : {}),
+        ...(omitReferer ? { sendReferer: false } : {}),
     };
 }
 

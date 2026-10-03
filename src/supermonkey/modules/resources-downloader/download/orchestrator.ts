@@ -22,6 +22,7 @@ import { DownloadExecutor } from "./executor";
 
 type DownloadBranch = {
     url: string;
+    refererPageUrl: string;
     progress: ProgressItemHandle;
 };
 
@@ -320,7 +321,14 @@ export class DownloadOrchestrator {
         this.log.debug("Running download mode", modeName, initialUrl);
 
         if (modeName === "download") {
-            await this.runFinalDownload(initialUrl, undefined, setProgress, signal);
+            await this.runFinalDownload(
+                initialUrl,
+                window.location.href,
+                mapping.sendReferer !== false,
+                undefined,
+                setProgress,
+                signal,
+            );
             return;
         }
 
@@ -331,6 +339,7 @@ export class DownloadOrchestrator {
 
         const initialBranch: DownloadBranch = {
             url: initialUrl,
+            refererPageUrl: window.location.href,
             progress: leaf.progress!,
         };
         const branches = await this.runCustomSteps(
@@ -374,6 +383,7 @@ export class DownloadOrchestrator {
                             branch.url,
                             element,
                             step,
+                            branch.refererPageUrl,
                             (httpProgress) => {
                                 DownloadOrchestrator.reportHttpProgress(
                                     httpProgress,
@@ -396,7 +406,13 @@ export class DownloadOrchestrator {
                         throw new Error(`Step ${stepIndex + 1} resolved no URLs`);
                     }
 
-                    results[index] = this.expandBranchUrls(branch, resolvedUrls, leaf, stepEnd);
+                    results[index] = this.expandBranchUrls(
+                        branch,
+                        resolvedUrls,
+                        leaf,
+                        stepEnd,
+                        fetched.finalUrl,
+                    );
                 }),
             );
 
@@ -414,6 +430,7 @@ export class DownloadOrchestrator {
         urls: readonly string[],
         leaf: ResourceLeaf,
         stepEndProgress: number,
+        refererPageUrl: string,
     ): DownloadBranch[] {
         const [firstUrl, ...extraUrls] = urls;
         if (firstUrl == null) {
@@ -424,12 +441,16 @@ export class DownloadOrchestrator {
         branch.progress.setLabel(firstUrl);
         branch.progress.setProgress(stepEndProgress);
 
-        const expanded: DownloadBranch[] = [{ url: firstUrl, progress: branch.progress }];
+        const expanded: DownloadBranch[] = [{
+            url: firstUrl,
+            refererPageUrl,
+            progress: branch.progress,
+        }];
 
         for (const url of extraUrls) {
             const progress = this.createBranchMenuItem(leaf, url);
             progress.setProgress(stepEndProgress);
-            expanded.push({ url, progress });
+            expanded.push({ url, refererPageUrl, progress });
         }
 
         return expanded;
@@ -452,6 +473,8 @@ export class DownloadOrchestrator {
         await Promise.all(branches.map(async (branch) => {
             await this.runFinalDownload(
                 branch.url,
+                branch.refererPageUrl,
+                finalStep.sendReferer !== false,
                 finalStep,
                 (progress, statusText) => branch.progress.setProgress(progress, statusText),
                 signal,
@@ -463,6 +486,8 @@ export class DownloadOrchestrator {
 
     private async runFinalDownload(
         url: string,
+        refererPageUrl: string,
+        sendReferer: boolean,
         step: FinalDownloadStep | undefined,
         setProgress: ProgressReporter,
         signal: AbortSignal,
@@ -472,6 +497,8 @@ export class DownloadOrchestrator {
         await this.executionLimiter.run(() =>
             this.downloadExecutor.downloadUrl(
                 url,
+                refererPageUrl,
+                sendReferer,
                 step,
                 (httpProgress: HttpProgress) => {
                     DownloadOrchestrator.reportHttpProgress(

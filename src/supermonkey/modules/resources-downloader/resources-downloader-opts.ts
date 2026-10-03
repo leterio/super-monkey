@@ -167,22 +167,37 @@ function normalizeUserMappings(
 function mappingKeys(type: unknown): readonly string[] {
     const base = ["type", "selectors", "pageFilter", "ignoreDecoration", "decoration"];
     if (type === "leaf") {
-        return [...base, "urlSources", "downloadMode"];
+        return [...base, "urlSources", "downloadMode", "sendReferer"];
     }
     if (type === "collection") {
         return [...base, "children"];
     }
-    return [...base, "urlSources", "downloadMode", "children"];
+    return [...base, "urlSources", "downloadMode", "sendReferer", "children"];
 }
 
 function downloadStepKeys(mode: unknown): readonly string[] {
     if (mode === "download") {
-        return ["mode", "headers", "timeout"];
+        return ["mode", "headers", "timeout", "sendReferer"];
     }
     if (mode === "document") {
-        return ["mode", "valueSource", "method", "headers", "data", "timeout"];
+        return ["mode", "valueSource", "method", "headers", "data", "timeout", "sendReferer"];
     }
-    return ["mode", "valueSource", "method", "headers", "data", "timeout"];
+    return ["mode", "valueSource", "method", "headers", "data", "timeout", "sendReferer"];
+}
+
+function sendRefererField(
+    raw: unknown,
+    path: string,
+    walk: OptsNormalization,
+): { sendReferer: false } | Record<string, never> {
+    if (raw == null || raw === true) {
+        return {};
+    }
+    if (raw === false) {
+        return { sendReferer: false };
+    }
+    walk.repair(path, "sendReferer must be a boolean");
+    return {};
 }
 
 function normalizeMapping(
@@ -259,6 +274,7 @@ function normalizeLeafMapping(
         ...base,
         urlSources,
         ...(downloadMode != null ? { downloadMode } : {}),
+        ...sendRefererField(raw.sendReferer, `${path}.sendReferer`, walk),
     };
 }
 
@@ -549,6 +565,7 @@ function normalizeFinalDownloadStep(
         mode: "download",
         ...(headers != null ? { headers } : {}),
         ...(timeout != null ? { timeout } : {}),
+        ...sendRefererField(entry.sendReferer, `${stepPath}.sendReferer`, walk),
     };
 }
 
@@ -591,6 +608,7 @@ function normalizeDocumentStep(
         ...(headers != null ? { headers } : {}),
         ...(data != null ? { data } : {}),
         ...(timeout != null ? { timeout } : {}),
+        ...sendRefererField(entry.sendReferer, `${stepPath}.sendReferer`, walk),
     };
 }
 

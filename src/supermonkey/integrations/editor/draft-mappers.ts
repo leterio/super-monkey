@@ -168,6 +168,7 @@ export type DraftAdditionalPagesBinderFields = {
     numberingLabelStartsFromZero: boolean;
     pageRequestMethod: string;
     pageRequestHeadersJson: string;
+    pageRequestSendReferer: boolean;
 };
 
 export type DraftAdditionalPagesOpts = {
@@ -198,6 +199,7 @@ export type DraftRdMapping = {
     decoration: DraftRdDecoration;
     urlSources: DraftRdUrlSource[];
     downloadMode: string;
+    sendReferer: boolean;
     children: string;
 };
 
@@ -208,6 +210,7 @@ export type DraftRdDownloadStep = {
     headersJson: string;
     dataJson: string;
     timeout: string;
+    sendReferer: boolean;
 };
 
 export type DraftRdDownloadMode = {

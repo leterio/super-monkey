@@ -271,6 +271,15 @@ function mountMappingFields(
             path: `${basePath}.downloadMode`,
             help: "Mode name. Empty uses built-in \"download\".",
         });
+        ui.field(host, `${id}-send-referer`, "Send \"Referer\" header", ui.checkbox(
+            mapping.sendReferer,
+            (checked) => {
+                mapping.sendReferer = checked;
+            },
+        ), {
+            path: `${basePath}.sendReferer`,
+            help: "When checked, built-in mode \"download\" sends Referer set to the open tab's origin. Custom modes use each step's setting.",
+        });
     }
 
     mountDecorationFields(host, mapping.decoration, `${id}-decoration`, `${basePath}.decoration`, ui);
@@ -577,6 +586,15 @@ function mountDownloadStep(
                 help: "Optional HTTP method for the document request (for example GET or POST).",
             });
         }
+        ui.field(staging, `${id}-send-referer`, "Send \"Referer\" header", ui.checkbox(
+            step.sendReferer,
+            (checked) => {
+                step.sendReferer = checked;
+            },
+        ), {
+            path: `${base}.sendReferer`,
+            help: "When checked, this step sends Referer set to the origin of the previous page. A Referer entry in Headers is sent as written.",
+        });
         ui.field(staging, `${id}-headers`, "Headers (JSON)", ui.textarea(
             step.headersJson,
             (value) => {
@@ -634,6 +652,7 @@ function mappingToDraft(key: string, raw: unknown): DraftRdMapping {
     draft.ignoreDecoration = raw.ignoreDecoration === true;
     draft.decoration = decorationToDraft(raw.decoration);
     draft.downloadMode = typeof raw.downloadMode === "string" ? raw.downloadMode : "";
+    draft.sendReferer = raw.sendReferer !== false;
     draft.children = Array.isArray(raw.children)
         ? joinCsv(raw.children.filter((entry): entry is string => typeof entry === "string"))
         : "";
@@ -704,6 +723,7 @@ function downloadStepToDraft(raw: unknown): DraftRdDownloadStep | undefined {
     if (isPlainObject(raw.headers)) {
         step.headersJson = JSON.stringify(raw.headers, null, 2);
     }
+    step.sendReferer = raw.sendReferer !== false;
     if (raw.data != null) {
         step.dataJson = typeof raw.data === "string"
             ? JSON.stringify(raw.data)
@@ -744,6 +764,7 @@ function draftMappingToOpts(mapping: DraftRdMapping): Record<string, unknown> | 
         ...base,
         urlSources,
         ...(downloadMode.length > 0 ? { downloadMode } : {}),
+        ...(mapping.sendReferer ? {} : { sendReferer: false }),
     };
 }
 
@@ -793,6 +814,7 @@ function draftDownloadStepToOpts(step: DraftRdDownloadStep): Record<string, unkn
             mode: "download",
             ...(headers != null ? { headers } : {}),
             ...(timeout != null ? { timeout } : {}),
+            ...(step.sendReferer ? {} : { sendReferer: false }),
         };
     }
     const data = parseDataJson(step.dataJson);
@@ -804,6 +826,7 @@ function draftDownloadStepToOpts(step: DraftRdDownloadStep): Record<string, unkn
         ...(headers != null ? { headers } : {}),
         ...(data != null ? { data } : {}),
         ...(timeout != null ? { timeout } : {}),
+        ...(step.sendReferer ? {} : { sendReferer: false }),
     };
 }
 
@@ -860,6 +883,7 @@ function emptyMapping(): DraftRdMapping {
         decoration: emptyDecoration(),
         urlSources: [emptyUrlSource()],
         downloadMode: "",
+        sendReferer: true,
         children: "",
     };
 }
@@ -894,6 +918,7 @@ function emptyDownloadStep(mode: "document" | "download"): DraftRdDownloadStep {
         headersJson: "",
         dataJson: "",
         timeout: "",
+        sendReferer: true,
     };
 }
 
@@ -909,6 +934,7 @@ function isEmptyMapping(mapping: DraftRdMapping): boolean {
         && mapping.downloadMode.trim().length === 0
         && mapping.children.trim().length === 0
         && mapping.ignoreDecoration === false
+        && mapping.sendReferer
         && mapping.urlSources.every((source) => source.kind === "attribute" && source.attribute.trim().length === 0);
 }
 
@@ -919,6 +945,7 @@ function isEmptyDownloadMode(mode: DraftRdDownloadMode): boolean {
             && step.headersJson.trim().length === 0
             && step.dataJson.trim().length === 0
             && step.timeout.trim().length === 0
+            && step.sendReferer
             && step.mode === "download");
 }
 

@@ -438,6 +438,15 @@ function mountPageRequestFields(
     ui: ModuleOptsFormContext["ui"],
 ): void {
     const requestPath = `${groupPath}.pageRequestOpts`;
+    ui.field(host, `${id}-send-referer`, "Send \"Referer\" header", ui.checkbox(
+        draft.pageRequestSendReferer,
+        (checked) => {
+            draft.pageRequestSendReferer = checked;
+        },
+    ), {
+        path: `${requestPath}.sendReferer`,
+        help: "When checked, each page request sends Referer set to the open tab's origin. A Referer entry in the headers JSON is sent as written.",
+    });
     ui.field(host, `${id}-method`, "Page request method", ui.textInput(
         draft.pageRequestMethod,
         (value) => {
@@ -548,6 +557,7 @@ function hydratePageRequest(draft: DraftAdditionalPagesBinderFields, raw: unknow
     if (typeof raw.method === "string") {
         draft.pageRequestMethod = raw.method;
     }
+    draft.pageRequestSendReferer = raw.sendReferer !== false;
     if (isPlainObject(raw.headers)) {
         draft.pageRequestHeadersJson = JSON.stringify(raw.headers, null, 2);
     }
@@ -667,12 +677,13 @@ function buildPageRequestOpts(
             // Leave invalid headers out; normalization/validation catches incomplete opts.
         }
     }
-    if (method.length === 0 && headers == null) {
+    if (method.length === 0 && headers == null && draft.pageRequestSendReferer) {
         return undefined;
     }
     return {
         ...(method.length > 0 ? { method } : {}),
         ...(headers != null ? { headers } : {}),
+        ...(draft.pageRequestSendReferer ? {} : { sendReferer: false }),
     };
 }
 
@@ -710,6 +721,7 @@ function emptyGroupBinder(name = ""): DraftAdditionalPagesGroup {
         numberingLabelStartsFromZero: false,
         pageRequestMethod: "",
         pageRequestHeadersJson: "",
+        pageRequestSendReferer: true,
     };
 }
 

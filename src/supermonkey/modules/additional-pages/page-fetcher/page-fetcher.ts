@@ -1,12 +1,13 @@
 import { requireDocumentResponse } from "../../../utils/dom/document";
 import { Logger } from "../../../utils/logger";
-import { httpRequest } from "../../../utils/network";
+import { httpRequest, withDefaultReferer } from "../../../utils/network";
 import { normalizeUrl } from "../../../utils/urls";
 import { Page } from "../metadata";
 
 export type PageFetcherRequestOpts = {
     readonly method?: string;
     readonly headers?: Record<string, string>;
+    readonly sendReferer?: boolean;
 }
 
 export type PageFetcherOpts = {
@@ -32,7 +33,9 @@ export class PageFetcher {
             method: opts.request?.method ?? "GET",
             responseType: "document",
             timeout: opts.timeoutMs,
-            headers: opts.request?.headers ?? {},
+            headers: opts.request?.sendReferer === false
+                ? opts.request.headers
+                : withDefaultReferer(opts.request?.headers, window.location.href),
             onprogress: (progress) => page.progress?.setProgress(progress.progress),
         });
 
