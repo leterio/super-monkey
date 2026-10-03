@@ -236,6 +236,8 @@ Controls where the download button attaches relative to the matched element.
 | `closestSelectors`       | `string[]` for `element.closest` (first matching selector) as the decoration target              |
 | `overridePosition`       | Set `position: relative` on the decoration container                                             |
 
+The decoration container receives `data-sm-rd-decorated-by` (the mapping key) and `data-sm-rd-state` (the item state of the resource that attached the button). That `data-sm-rd-state` value stays aligned with the resource: `pending`, `progress`, `done`, `error`, `skipped`, `cancelled`. The matched element keeps its own `data-sm-rd-mapped-by` and `data-sm-rd-state`. When the container is the matched element, both attributes sit on that node. When decoration resolves to a parent, a closest match, or a wrap, `data-sm-rd-state` is present on the matched element and on the container.
+
 Style hooks for Custom CSS: `[data-sm-rd-mapped-by="…"]`, `[data-sm-rd-decorated-by="…"]`, `[data-sm-rd-state="…"]` - see [Custom CSS - Stable styling hooks](./custom-css.md#stable-styling-hooks).
 
 ## Download modes
@@ -293,7 +295,7 @@ Resources Downloader does not override `onIntegrationLoaded` or `onContentLoaded
 1. Take the entry’s managed element as the scan root (views without an element fall back to `document.body`).
 2. Match **entry-point** mappings in order (collections first, then leaves).
 3. Build a tree of leaves and collections; decorate new roots with a download control when decoration is enabled.
-4. Mark mapping targets with `data-sm-rd-mapped-by` (value = mapping key) so later scans skip them. Each mapped element also gets `data-sm-rd-state` with the resource’s item state. Decoration containers get `data-sm-rd-decorated-by` when a button is attached; a container that already has the attribute is not decorated again.
+4. Mark mapping targets with `data-sm-rd-mapped-by` (value = mapping key) so later scans skip them. Each mapped element gets `data-sm-rd-state` with that resource’s item state. When a download control is attached, the decoration container gets `data-sm-rd-decorated-by` and the same `data-sm-rd-state` value. Later state changes update the mapped element and that container. A container that already has `data-sm-rd-decorated-by` is not decorated again; its `data-sm-rd-state` continues to follow the resource that decorated it.
 
 DOM markers:
 
@@ -301,7 +303,7 @@ DOM markers:
 | ------------------------- | ------------------------------------------------------ |
 | `data-sm-rd-mapped-by`    | Mapping key that claimed the element                   |
 | `data-sm-rd-decorated-by` | Mapping key that attached a download control           |
-| `data-sm-rd-state`        | Resource item state (`pending`, `progress`, `done`, …) |
+| `data-sm-rd-state`        | Item state on the mapped element and on the decoration container (`pending`, `progress`, `done`, `error`, `skipped`, `cancelled`) |
 
 Content Manager event names and payloads: [Content Manager - Events](./content-manager.md#events).
 
@@ -325,7 +327,7 @@ After a non-abort network/pipeline failure, if the leaf’s `attempt` is less th
 
 Manual **Retry** / **Retry All** clear any queue membership and pending auto-retry timer, reset `attempt` to `1`, and re-admit (they ignore the `downloadRetries` ceiling for that fresh run).
 
-Status on the **resource element** uses `data-sm-rd-state` (`pending`, `progress`, `done`, `error`, `skipped`, `cancelled`), including while `pending`. Status on the **download button** uses `data-state` (`progress`, `done`, `error`, `skipped`, `cancelled`); that attribute is omitted while `pending`. Parent collections aggregate child status (progress → error → pending → done; `skipped` counts like done; `cancelled` like pending). The menu lists every admitted leaf with a resolved URL (including those waiting for execution). Collections do not appear as menu rows.
+Status on the **mapped element** and on the **decoration container** uses `data-sm-rd-state` (`pending`, `progress`, `done`, `error`, `skipped`, `cancelled`), including while `pending`. The container value follows the resource that attached the download control. Status on the **download button** uses `data-state` (`progress`, `done`, `error`, `skipped`, `cancelled`); that attribute is omitted while `pending`. Parent collections aggregate child status (progress → error → pending → done; `skipped` counts like done; `cancelled` like pending). The menu lists every admitted leaf with a resolved URL (including those waiting for execution). Collections do not appear as menu rows.
 
 The [progress menu](./notification-bar.md) also offers **Download All**, **Retry All**, and **Cancel All**. Download All admits every leaf that is pending, cancelled, or failed, after URL dedupe in walk order, and skips leaves already in the execution queue, executing, or waiting on an auto-retry timer. Leaves already `skipped` are not restarted by Download All; a manual click on a skipped leaf still runs. Retry All re-admits failed leaves with `attempt` reset to `1`. Cancel All cancels every leaf that is waiting in the execution queue, waiting on an auto-retry timer, or actively downloading.
 

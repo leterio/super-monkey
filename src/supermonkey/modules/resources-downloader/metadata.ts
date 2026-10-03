@@ -11,6 +11,8 @@ type BaseResource = {
     readonly element: HTMLElement;
     /** Mapping key that produced this resource. */
     readonly mappedBy: string;
+    /** Decoration container that received this resource’s download control. */
+    decoratedElement?: HTMLElement;
 };
 
 /** Single downloadable resource matched from a leaf mapping. */

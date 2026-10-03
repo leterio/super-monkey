@@ -595,6 +595,7 @@ export class DownloadOrchestrator {
     private applyButtonState(resource: Resource): void {
         applyDataState(resource.downloadButton, resource.state);
         resource.element.setAttribute(RESOURCE_STATE_ATTR, resource.state);
+        resource.decoratedElement?.setAttribute(RESOURCE_STATE_ATTR, resource.state);
     }
 
     private bubble(resource: Resource): void {

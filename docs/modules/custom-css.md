@@ -368,7 +368,7 @@ Super Monkey and feature modules expose stable attributes you can target from `s
 | `data-sm-cm-<group>-id`   | Content Manager      | Resolved id for a listing entry in `group`             |
 | `data-sm-rd-mapped-by`    | Resources Downloader | Mapping key that claimed the element                   |
 | `data-sm-rd-decorated-by` | Resources Downloader | Mapping key that attached a download control           |
-| `data-sm-rd-state`        | Resources Downloader | Resource item state (`pending`, `progress`, `done`, …) |
+| `data-sm-rd-state`        | Resources Downloader | Item state on the mapped element and the decoration container (`pending`, `progress`, `done`, …) |
 
 Notification Bar layout variables: `--sm-nb-offset-top`, `--sm-nb-offset-bottom` on `:root`.
 
