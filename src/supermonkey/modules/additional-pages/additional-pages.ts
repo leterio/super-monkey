@@ -8,6 +8,7 @@ import { Logger } from "../../utils/logger";
 import { passesPageFilter } from "../../utils/page-filter";
 import { isValidId } from "../../utils/string";
 import type { Configuration } from "../configuration/configuration";
+import { BooleanConfiguration } from "../configuration/impl/boolean";
 import { NumberConfiguration } from "../configuration/impl/number";
 import { Module } from "../module";
 import type { NotificationEntry } from "../notification-bar/entries/notification-entry";
@@ -79,6 +80,16 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
             description: "Per-request timeout in milliseconds.",
         },
     );
+    private readonly loadUntilVisibleConfiguration = new BooleanConfiguration(
+        this.name,
+        "loadUntilVisible",
+        false,
+        {
+            label: "Load Until Visible Item",
+            description:
+                "Keeps fetching the next page into the current listing until Content Manager keeps items for any group. Stops when a scan keeps items or there is no next page.",
+        },
+    );
 
     private readonly binders: ReadonlyMap<string, GroupBinderRuntime>;
     private readonly pageFetcher: PageFetcher = new PageFetcher();
@@ -133,6 +144,9 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
                 this.syncNotificationVisibility();
             });
         }
+        this.loadUntilVisibleConfiguration.watch(() => {
+            this.syncNotificationVisibility();
+        });
         this.syncNotificationVisibility();
     }
 
@@ -147,6 +161,7 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
     override get configurations(): Configuration[] {
         return [
             ...Array.from(this.binders.values(), (binder) => binder.pagesToLoadConfiguration),
+            this.loadUntilVisibleConfiguration,
             this.pageLoadIntervalConfiguration,
             this.pageLoadTimeoutConfiguration,
         ];
@@ -217,18 +232,28 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
 
             this.notificationIcon.state = ItemState.PROGRESS;
             let hasGroupFailure = false;
+            let itemsFound = false;
 
             for (const groupKey of matchingKeys) {
-                const binder = this.binders.get(groupKey)!;
-                const pagesToLoad = binder.pagesToLoadConfiguration.value;
-                if (pagesToLoad <= 0) {
-                    this.log.info("Group", groupKey, ": pagesToLoad is 0. Skipping fetch.");
-                    continue;
+                if (itemsFound) {
+                    break;
                 }
 
+                const binder = this.binders.get(groupKey)!;
+                const pagesToLoad = binder.pagesToLoadConfiguration.value;
+
                 try {
-                    this.notificationIcon.state = ItemState.PROGRESS;
-                    await this.runGroup(binder, pagesToLoad);
+                    if (pagesToLoad > 0) {
+                        this.notificationIcon.state = ItemState.PROGRESS;
+                        await this.runGroup(binder, pagesToLoad);
+                    } else {
+                        this.log.info("Group", groupKey, ": pagesToLoad is 0. Skipping the counted fetch.");
+                    }
+
+                    if (!itemsFound && this.loadUntilVisibleConfiguration.value) {
+                        this.notificationIcon.state = ItemState.PROGRESS;
+                        itemsFound = await this.fillUntilVisible(binder);
+                    }
                 } catch (error) {
                     this.log.error("Group", groupKey, "failed:", error);
                     hasGroupFailure = true;
@@ -251,6 +276,72 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
         binder: GroupBinderRuntime,
         pagesToLoad: number,
     ): Promise<void> {
+        const run = this.openGroupRun(binder, pagesToLoad);
+        const lastLoad = await this.loadPages(run);
+        this.finishLoadingPages(run, lastLoad);
+    }
+
+    private async fillUntilVisible(binder: GroupBinderRuntime): Promise<boolean> {
+        await Promise.resolve();
+
+        const contentManager = SuperMonkey.loadedIntegration?.contentManager;
+        if (contentManager == null) {
+            return false;
+        }
+
+        if (contentManager.hasListingItems()) {
+            this.log.info(
+                "Content Manager kept listing items. Stopping further loads for every group.",
+            );
+            return true;
+        }
+
+        const run = this.openGroupRun(binder, binder.pagesToLoadConfiguration.value);
+        let lastLoad: LoadedPageResult | null = null;
+
+        while (true) {
+            const nextPages = binder.pagingStrategy.resolveNextPages(
+                run.paginationContext,
+                1,
+                run.paginationContext.cursor,
+                lastLoad?.paginators,
+            );
+            if (nextPages.length === 0) {
+                this.log.info(
+                    "Group",
+                    binder.groupKey,
+                    ": Content Manager kept no listing items and there is no next page.",
+                );
+                break;
+            }
+
+            this.log.info(
+                "Group",
+                binder.groupKey,
+                ": Content Manager kept no listing items. Loading the next page.",
+            );
+            lastLoad = await this.loadResolvedNextPages(run, nextPages);
+            run.paginationContext.cursor = nextPages.at(-1)!;
+
+            if (contentManager.hasListingItems()) {
+                this.log.info(
+                    "Content Manager kept listing items. Stopping further loads for every group.",
+                );
+                this.finishLoadingPages(run, lastLoad);
+                return true;
+            }
+        }
+
+        this.finishLoadingPages(run, lastLoad);
+        return false;
+    }
+
+    private openGroupRun(binder: GroupBinderRuntime, pagesToLoad: number): GroupRun {
+        const existing = this.groupRuns.get(binder.groupKey);
+        if (existing != null) {
+            return existing;
+        }
+
         const paginationContext = binder.contextManager.resolveContext(
             binder.pagingStrategy.getDefaultPageNumber?.() ?? 1,
         );
@@ -277,8 +368,7 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
             paginationContext.totalPages,
         );
 
-        const lastLoad = await this.loadPages(run);
-        this.finishLoadingPages(run, lastLoad);
+        return run;
     }
 
     private async loadPages(run: GroupRun): Promise<LoadedPageResult | null> {
@@ -536,9 +626,10 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
     }
 
     private syncNotificationVisibility(): void {
-        const visible = Array.from(this.binders.values()).some(
-            (binder) => binder.pagesToLoadConfiguration.value > 0,
-        );
+        const visible = this.loadUntilVisibleConfiguration.value
+            || Array.from(this.binders.values()).some(
+                (binder) => binder.pagesToLoadConfiguration.value > 0,
+            );
         this.notificationIcon.setVisible(visible);
     }
 

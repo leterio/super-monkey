@@ -384,8 +384,8 @@ On `CONTENT_LOADED` (live tab document only), a load run:
 
 1. Reads `SuperMonkey.loadedIntegration?.contentManager`. When Content Manager is missing, the module skips fetching.
 2. Keeps binder keys whose Content Manager listing matches the document (`hasListingContext`, including the listing `pageFilter`) and whose binder `pageFilter` passes the active mapped-page names. See [Page filter](#page-filter).
-3. Processes all matching group binders sequentially in `groups` key order. A group whose **Pages to Load (`groupKey`)** preference is `0` skips fetching.
-4. For each enabled group, resolves its pagination context, validates its strategy, and fetches each additional page. After each fetch it republishes `CONTENT_LOADED` with the fetched `Document` so Content Manager runs a full scan and remaining cards append into the live listing containers.
+3. Processes all matching group binders sequentially in `groups` key order. A group whose **Pages to Load (`groupKey`)** preference is `0` skips the counted fetch. When **Load Until Visible Item** is on, that group still requests further pages while the latest Content Manager listing scan kept no items.
+4. For each enabled group, resolves its pagination context, validates its strategy, and fetches each additional page. After each fetch it republishes `CONTENT_LOADED` with the fetched `Document` so Content Manager runs a full scan and remaining cards append into the live listing containers. With **Load Until Visible Item** on, each fetched page asks `hasListingItems()` after that scan. Kept items in any group stop every remaining binder. The extra fetch also stops when the strategy has no next page.
 
 Handlers ignore `CONTENT_LOADED` when `document` is not the live tab document (so a republished foreign document does not start another load run).
 
@@ -399,7 +399,7 @@ The module adds a [progress menu](./notification-bar.md#progress-menu) on the No
 
 For an incremental or decremental group, the menu subtitle reads `Page: {current} of {total}` once that group's last page number is known. Labels follow `numberingLabelStartsFromZero`. Several numbered groups in one run prefix each summary with its group key. A next-link group leaves the subtitle unset.
 
-The icon stays off the bar while every group's **Pages to Load** preference is `0`. Raising any group above `0` shows the icon again.
+The icon stays off the bar while every group's **Pages to Load** preference is `0` and **Load Until Visible Item** is off. Raising any group above `0`, or turning that preference on, shows the icon again.
 
 ## Runtime configurations
 
@@ -407,7 +407,8 @@ Shown in the Configuration Menu (end-user preferences, not integration opts):
 
 | Configuration                                    | Scope     | Default | Min    | Max      | Description                                          |
 | ------------------------------------------------ | --------- | ------- | ------ | -------- | ---------------------------------------------------- |
-| **Pages to Load (`groupKey`)**                   | per group | `0`     | `0`    | `99`     | How many pages that group fetches (`0` skips it)     |
+| **Pages to Load (`groupKey`)**                   | per group | `0`     | `0`    | `99`     | How many pages that group fetches (`0` skips the counted fetch) |
+| **Load Until Visible Item** (`loadUntilVisible`) | global    | off     |        |          | Keeps fetching the next page until Content Manager keeps items for any group |
 | **Page Load Interval (ms)** (`pageLoadInterval`) | global    | `1000`  | `100`  | `10000`  | Delay between page requests                          |
 | **Page Load Timeout (ms)** (`pageLoadTimeout`)   | global    | `10000` | `1000` | `180000` | Per-request timeout                                  |
 

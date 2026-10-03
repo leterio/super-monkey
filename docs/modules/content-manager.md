@@ -204,6 +204,8 @@ Spell mapped-page names exactly as defined under **Mapped pages**. A typo in `pa
 
 `hasListingContext(document, groupKey?)` uses the same filter so modules do not treat filtered-out listings as present. An omitted `groupKey` checks every listing group; a provided key checks only that group (unknown keys return `false`).
 
+`hasListingItems(groupKey?)` reports whether the latest listing scan kept items after hidden entries were dropped. An omitted `groupKey` is true when any group kept items.
+
 New entries receive `data-sm-cm-listed` (group keys) and `data-sm-cm-<groupKey>-id` (resolved id). Already-listed nodes are skipped.
 
 #### Listing cleanup
@@ -302,7 +304,7 @@ Source: `src/supermonkey/content-manager/`.
 
 #### Listing context helper
 
-When a module needs to know whether a listing container exists in a document, it reads `SuperMonkey.loadedIntegration?.contentManager` and calls `hasListingContext(document)` or `hasListingContext(document, groupKey)` to scope the check to one content group. To run another full content scan on a document, republish `CONTENT_LOADED` with that `document` (Content Manager owns the event and performs the scan).
+When a module needs to know whether a listing container exists in a document, it reads `SuperMonkey.loadedIntegration?.contentManager` and calls `hasListingContext(document)` or `hasListingContext(document, groupKey)` to scope the check to one content group. `hasListingItems()` reports whether the latest listing scan kept items after hidden entries were dropped; pass a group key to ask about one group. To run another full content scan on a document, republish `CONTENT_LOADED` with that `document` (Content Manager owns the event and performs the scan).
 
 Pipeline events stay on `EventBus`. Modules do not hold a Content Manager reference from construction.
 

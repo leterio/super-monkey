@@ -38,6 +38,7 @@ export class ContentManager extends Component {
 
     private readonly viewedEntityKeys = new Set<string>();
     private intervalStarted = false;
+    private listingBatchCounts = new Map<string, number>();
 
     constructor(private readonly opts: ContentManagerOpts) {
         super("ContentManager");
@@ -89,6 +90,24 @@ export class ContentManager extends Component {
                 return query(listingOpts.containerSelectors, sourceDocument) != null;
             });
         });
+    }
+
+    /**
+     * Whether the latest listing scan kept items after hidden entries were dropped.
+     * An omitted `groupKey` is true when any group kept items.
+     */
+    hasListingItems(groupKey?: string): boolean {
+        if (groupKey != null && groupKey.length > 0) {
+            return (this.listingBatchCounts.get(groupKey) ?? 0) > 0;
+        }
+
+        for (const count of this.listingBatchCounts.values()) {
+            if (count > 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private async scanViews(
@@ -262,6 +281,7 @@ export class ContentManager extends Component {
         const hasEntities = [...discovered.values()].some((entities) => entities.length > 0);
         if (!hasEntities) {
             this.log.trace("No new listing entities discovered");
+            this.recordListingBatch(new Map(groupKeys.map((key) => [key, 0])));
             return;
         }
 
@@ -569,10 +589,18 @@ export class ContentManager extends Component {
             [...remaining.values()].flat().length,
         );
 
+        this.recordListingBatch(new Map(
+            [...remaining.entries()].map(([key, entities]) => [key, entities.length]),
+        ));
+
         await EventBus.publish<EntitiesInjectedEventPayload>(
             ContentManagerEvents.ENTITIES_INJECTED,
             { entities: remaining },
         );
+    }
+
+    private recordListingBatch(counts: Map<string, number>): void {
+        this.listingBatchCounts = counts;
     }
 
     private findFirstLiveContainer(groupKey: string): HTMLElement | null {
