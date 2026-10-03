@@ -107,7 +107,8 @@ export class ContentManager extends Component {
         }
 
         if (Logger.isTraceEnabled()) {
-            this.log.trace("Discovered view entities:", entities);
+            this.log.trace("Discovered view entities:");
+            this.log.table(entities);
         } else {
             this.log.info("Discovered", entities.length, "view entities");
         }
@@ -266,8 +267,9 @@ export class ContentManager extends Component {
         }
 
         if (Logger.isTraceEnabled()) {
-            this.log.trace("Discovered listing entities:", [...discovered.values()].flat());
-        } else {
+            this.log.trace("Discovered listing entities:");
+            this.log.table([...discovered.values()].flat());
+        } else if (Logger.isInfoEnabled()) {
             this.log.info("Discovered", [...discovered.values()].flat().length, "new listing entities");
         }
 

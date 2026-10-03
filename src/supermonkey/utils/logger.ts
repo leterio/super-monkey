@@ -45,31 +45,6 @@ export class Logger {
         output(...opts);
     }
 
-    private buildMessageAndOutputWithOptionalTable(
-        output: (...messages: any[]) => void,
-        level: string,
-        ...messages: any[]
-    ): void {
-        let tablePayload: unknown;
-        let head = messages;
-
-        if (messages.length > 0) {
-            const last = messages[messages.length - 1];
-            if (last != null && typeof last === "object" && !(last instanceof Element)) {
-                tablePayload = last;
-                head = messages.slice(0, -1);
-            }
-        }
-
-        if (head.length > 0) {
-            this.buildMessageAndOutput(output, level, ...head);
-        }
-
-        if (tablePayload !== undefined) {
-            console.table(tablePayload);
-        }
-    }
-
     /**
      * Emits a trace message when the log level is at or below trace.
      * When the last argument is an object or array, it is omitted from the line and passed to `console.table`.
@@ -79,7 +54,7 @@ export class Logger {
             return;
         }
 
-        this.buildMessageAndOutputWithOptionalTable(console.debug, "TRACE", ...messages);
+        this.buildMessageAndOutput(console.debug, "TRACE", ...messages);
     }
 
     /**
@@ -91,7 +66,17 @@ export class Logger {
             return;
         }
 
-        this.buildMessageAndOutputWithOptionalTable(console.debug, "DEBUG", ...messages);
+        this.buildMessageAndOutput(console.debug, "DEBUG", ...messages);
+    }
+
+    /**
+     * Emits a table message when the log level is at or below trace or debug.
+     * The object is passed to `console.table`.
+     */
+    table(object: any): void {
+        if (Logger.isTraceEnabled() || Logger.isDebugEnabled()) {
+            console.table(object);
+        }
     }
 
     /** Emits an info message when the log level is at or below info. */
