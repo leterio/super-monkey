@@ -99,6 +99,10 @@
     content: "❌";
 }
 
+.sm-nb-icon[hidden] {
+    display: none;
+}
+
 .sm-nb-icon svg,
 .sm-nb-icon img {
     width: 100%;
@@ -122,6 +126,10 @@
 
 .sm-panel.open {
     display: flex !important;
+}
+
+.sm-panel[hidden] {
+    display: none !important;
 }
 
 /* #endregion */

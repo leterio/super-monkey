@@ -24,7 +24,9 @@ import {
     type PageFetcherRequestOpts,
 } from "./page-fetcher/page-fetcher";
 import {
+    displayLabelFromPageNumber,
     resolveNumberedPagingOpts,
+    type ResolvedNumberedPagingOpts,
 } from "./paging-strategy/numbered-paging-strategy";
 import {
     PagingStrategy,
@@ -40,6 +42,7 @@ type GroupBinderRuntime = {
     readonly pagingStrategy: PagingStrategy;
     readonly pageRequestOpts?: PageFetcherRequestOpts;
     readonly pageFilter?: readonly string[];
+    readonly pageNumbering?: ResolvedNumberedPagingOpts;
     readonly pagesToLoadConfiguration: NumberConfiguration;
 };
 
@@ -81,6 +84,7 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
     private readonly pageFetcher: PageFetcher = new PageFetcher();
     private readonly groupRuns: Map<string, GroupRun> = new Map();
     private readonly pageRuns: WeakMap<Page, GroupRun> = new WeakMap();
+    private readonly pageSummaries: Map<string, string> = new Map();
 
     constructor(name: string, opts: AdditionalPagesOpts) {
         super(name, opts);
@@ -106,6 +110,7 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
                         pagingStrategy,
                         pageRequestOpts: binder.pageRequestOpts,
                         pageFilter: binder.pageFilter,
+                        ...(pageNumbering != null ? { pageNumbering } : {}),
                         pagesToLoadConfiguration: new NumberConfiguration(
                             this.name,
                             `pagesToLoad_${AdditionalPages.toConfigurationGroupId(groupKey)}`,
@@ -122,6 +127,13 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
                 ];
             }),
         );
+
+        for (const binder of this.binders.values()) {
+            binder.pagesToLoadConfiguration.watch(() => {
+                this.syncNotificationVisibility();
+            });
+        }
+        this.syncNotificationVisibility();
     }
 
     override get title(): string {
@@ -162,6 +174,8 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
         try {
             this.log.info("Preparing to load additional pages ...");
             this.groupRuns.clear();
+            this.pageSummaries.clear();
+            this.notificationIcon.setSubtitle(null);
 
             const contentManager = SuperMonkey.loadedIntegration?.contentManager;
             if (contentManager == null) {
@@ -241,6 +255,7 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
             binder.pagingStrategy.getDefaultPageNumber?.() ?? 1,
         );
         binder.pagingStrategy.validateContext(paginationContext);
+        this.noteNumberedPageSummary(binder, paginationContext);
 
         const run: GroupRun = {
             binder,
@@ -518,6 +533,43 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
 
     private areAllPagesDone(run: GroupRun): boolean {
         return Array.from(run.processedPages).every((page) => page.state === ItemState.DONE);
+    }
+
+    private syncNotificationVisibility(): void {
+        const visible = Array.from(this.binders.values()).some(
+            (binder) => binder.pagesToLoadConfiguration.value > 0,
+        );
+        this.notificationIcon.setVisible(visible);
+    }
+
+    private noteNumberedPageSummary(binder: GroupBinderRuntime, context: PaginationContext): void {
+        const numbering = binder.pageNumbering;
+        if (numbering == null || typeof context.totalPages !== "number") {
+            return;
+        }
+
+        const current = context.rootPage.label
+            ?? displayLabelFromPageNumber(context.rootPage.number, numbering);
+        const total = displayLabelFromPageNumber(context.totalPages, numbering);
+        this.pageSummaries.set(binder.groupKey, `Page: ${current} of ${total}`);
+        this.publishPageSummary();
+    }
+
+    private publishPageSummary(): void {
+        const entries = [...this.pageSummaries.entries()];
+        if (entries.length === 0) {
+            this.notificationIcon.setSubtitle(null);
+            return;
+        }
+
+        if (entries.length === 1) {
+            this.notificationIcon.setSubtitle(entries[0][1]);
+            return;
+        }
+
+        this.notificationIcon.setSubtitle(
+            entries.map(([groupKey, summary]) => `${groupKey}: ${summary}`).join(" · "),
+        );
     }
 
     private static toConfigurationGroupId(groupKey: string): string {

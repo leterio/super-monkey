@@ -1,7 +1,7 @@
 import { injectPanel, injectSection, UICSSMap } from "../../../../utils/ui/ui-builder";
 import { applyDataState } from "../../../../utils/ui/ui-state";
 import { debounce } from "../../../../utils/debouncer";
-import { injectElement } from "../../../../utils/dom/elements";
+import { createElement, injectElement } from "../../../../utils/dom/elements";
 import { randomString } from "../../../../utils/string";
 import { ItemState } from "../../../../utils/item-state";
 import { NotificationEntry, NotificationEntryOpts } from "../notification-entry";
@@ -52,6 +52,7 @@ export type ProgressMenuMapItemOpts = {
 export class ProgressMenuEntry extends NotificationEntry<ProgressMenuEntryOpts> {
     private readonly items: Set<ProgressMenuItem> = new Set();
     private itemsContainer?: HTMLElement;
+    private subtitleElement?: HTMLElement;
 
     constructor(
         iconSvgRaw: string,
@@ -64,9 +65,34 @@ export class ProgressMenuEntry extends NotificationEntry<ProgressMenuEntryOpts> 
         });
     }
 
+    /** Sets the panel subtitle under the title. An empty value hides it. */
+    setSubtitle(subtitle: string | null): void {
+        void this.menuContainer;
+
+        const subtitleElement = this.subtitleElement;
+        if (subtitleElement == null) {
+            return;
+        }
+
+        const text = subtitle?.trim() ?? "";
+        if (text.length === 0) {
+            subtitleElement.hidden = true;
+            subtitleElement.textContent = "";
+            return;
+        }
+
+        subtitleElement.hidden = false;
+        subtitleElement.textContent = text;
+    }
+
     protected override buildMenuContainer(): HTMLElement | null {
+        const subtitleElement = createElement("h2");
+        subtitleElement.hidden = true;
+        this.subtitleElement = subtitleElement;
+
         const panel = injectPanel(document.body, {
             title: this.title,
+            subtitle: subtitleElement,
         });
 
         if (this.opts?.additionalButtons != null && this.opts.additionalButtons.length > 0) {

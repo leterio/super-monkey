@@ -32,7 +32,7 @@ Override `buildMenuContainer` to attach a popup. Icon click toggles the menu `op
 
 `ProgressMenuEntry` (`src/supermonkey/modules/notification-bar/entries/progress-menu/`) is a `NotificationEntry` with a titled panel of progress rows. [Additional Pages](./additional-pages.md) and [Resources Downloader](./resources-downloader.md) use it as a Notification Bar icon.
 
-`mapItem(label, opts?)` appends a row and returns a handle: `setStatus`, `setProgress`, `setLabel`, `destroy`. Optional `onRetry` / `onCancel` show Retry / Cancel links (clicks are debounced). Optional `additionalButtons` on the entry opts add full-width buttons above the list.
+`mapItem(label, opts?)` appends a row and returns a handle: `setStatus`, `setProgress`, `setLabel`, `destroy`. Optional `onRetry` / `onCancel` show Retry / Cancel links (clicks are debounced). Optional `additionalButtons` on the entry opts add full-width buttons above the list. `setSubtitle` sets the line under the panel title; an empty value hides that line. `setVisible(false)` hides the icon and menu.
 
 ### Preferences
 

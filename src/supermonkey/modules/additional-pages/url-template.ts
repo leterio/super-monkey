@@ -55,6 +55,11 @@ export type ResolvedUrlTemplate = {
      * Written after copied query params, so the fetched page number overrides a copied value with the same key.
      */
     readonly pageQueryParam?: string;
+    /**
+     * Original `pathSuffix` when the template was built from one.
+     * Page numbers in links are read from a trailing match of this suffix.
+     */
+    readonly pathSuffix?: string;
 };
 
 function resolvePlaceholder(urlTemplate: string): string | null {
@@ -133,7 +138,11 @@ export function resolveUrlTemplate(
             return null;
         }
 
-        return { template, queryParams };
+        return {
+            template,
+            queryParams,
+            pathSuffix: config.pathSuffix.trim(),
+        };
     }
 
     if ("source" in config && config.source.source === "query-param") {
@@ -165,12 +174,7 @@ export function resolveUrlTemplate(
     return { template, queryParams };
 }
 
-/**
- * Builds a `{{NUMBER}}` path from `pathname` and `suffix`.
- * Removes one trailing match of `suffix` and a leftover trailing slash, then appends `suffix`.
- * `/` and an empty base resolve to `suffix` itself.
- */
-function resolvePathSuffixTemplate(pathname: string, suffix: string): string | null {
+function trailingPageSuffixRegex(suffix: string): RegExp | null {
     const placeholder = resolvePlaceholder(suffix);
     if (placeholder == null || !suffix.startsWith("/")) {
         return null;
@@ -185,7 +189,22 @@ function resolvePathSuffixTemplate(pathname: string, suffix: string): string | n
         .split(placeholder)
         .map(escapeRegExp)
         .join("(\\d+)");
-    const stripped = pathname.replace(new RegExp(`${pattern}/?$`), "");
+
+    return new RegExp(`${pattern}/?$`);
+}
+
+/**
+ * Builds a `{{NUMBER}}` path from `pathname` and `suffix`.
+ * Removes one trailing match of `suffix` and a leftover trailing slash, then appends `suffix`.
+ * `/` and an empty base resolve to `suffix` itself.
+ */
+function resolvePathSuffixTemplate(pathname: string, suffix: string): string | null {
+    const trailing = trailingPageSuffixRegex(suffix);
+    if (trailing == null) {
+        return null;
+    }
+
+    const stripped = pathname.replace(trailing, "");
 
     let base = stripped;
     if (base.length > 1 && base.endsWith("/")) {
@@ -232,7 +251,9 @@ export function extractPageQueryParam(url: string, pageQueryParam: string): numb
 
 /**
  * Reads the page number from `url` using a resolved template.
- * Query-param templates read `pageQueryParam`. Other templates capture `{{NUMBER}}`.
+ * Query-param templates read `pageQueryParam`.
+ * Path-suffix templates read a trailing `pathSuffix` match on the link pathname; relative hrefs resolve against the current tab.
+ * Other templates capture `{{NUMBER}}`.
  * @returns The parsed integer, or `null` when `url` does not contain it
  */
 export function readPageNumberFromUrl(url: string, resolved: ResolvedUrlTemplate): number | null {
@@ -240,7 +261,45 @@ export function readPageNumberFromUrl(url: string, resolved: ResolvedUrlTemplate
         return extractPageQueryParam(url, resolved.pageQueryParam);
     }
 
+    if (resolved.pathSuffix != null) {
+        const fromSuffix = extractPageNumberFromPathSuffix(url, resolved.pathSuffix);
+        if (fromSuffix != null) {
+            return fromSuffix;
+        }
+    }
+
     return extractPageNumberFromUrl(url, resolved.template);
+}
+
+function extractPageNumberFromPathSuffix(url: string, pathSuffix: string): number | null {
+    const regex = trailingPageSuffixRegex(pathSuffix);
+    if (regex == null) {
+        return null;
+    }
+
+    const pathnames: string[] = [];
+    try {
+        pathnames.push(new URL(url, window.location.href).pathname);
+    } catch {
+    }
+
+    if (!pathnames.includes(url)) {
+        pathnames.push(url);
+    }
+
+    for (const pathname of pathnames) {
+        const captured = pathname.match(regex)?.[1];
+        if (captured == null) {
+            continue;
+        }
+
+        const parsed = parseInteger(captured);
+        if (parsed != null) {
+            return parsed;
+        }
+    }
+
+    return null;
 }
 
 /**

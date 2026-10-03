@@ -341,6 +341,8 @@ urlTemplate: {
 
 On `/catalog/page/2?q=cats`, the next page URL is `/catalog/page/3?q=cats`. The suffix is trailing: `/catalog/page/2/extra` keeps that path and appends the suffix.
 
+A pager link contributes its page number when the link pathname ends with `pathSuffix`. Relative hrefs resolve against the current tab URL before that match.
+
 **Keep search params (common on search result pages):**
 
 ```ts
@@ -394,6 +396,10 @@ When **every** tracked page is `done`, it applies paginator pointers (DOM manage
 ## Progress UI
 
 The module adds a [progress menu](./notification-bar.md#progress-menu) on the Notification Bar. Failed pages show **Retry**. The menu host is `progress` while work runs, then `error` or `done` when nothing remains in `progress`.
+
+For an incremental or decremental group, the menu subtitle reads `Page: {current} of {total}` once that group's last page number is known. Labels follow `numberingLabelStartsFromZero`. Several numbered groups in one run prefix each summary with its group key. A next-link group leaves the subtitle unset.
+
+The icon stays off the bar while every group's **Pages to Load** preference is `0`. Raising any group above `0` shows the icon again.
 
 ## Runtime configurations
 
