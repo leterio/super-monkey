@@ -97,7 +97,7 @@ Reads the pathname of the current tab.
 
 Use `attribute` (and `map` when you must carve an id out of a longer value) when the string sits on an element attribute, including an `href`. Use `srcset` when the URL lives in a srcset or `data-*` srcset attribute.
 
-When nothing non-empty can be read, resolution yields no value (`null` at runtime). `resolveValue` uses only the first selector match. `resolveAllValues` returns every distinct match when a document step can produce multiple URLs.
+When nothing non-empty can be read, resolution yields no value (`null` at runtime). `resolveValue` uses only the first selector match. `resolveAllValues` returns every distinct match when a document step can produce multiple URLs. Its optional `selectorMatch` argument `"priority"` returns values from the first selector that yields one; omitted and `"all"` combine every selector.
 
 ## Sources
 
@@ -135,7 +135,7 @@ Features that accept a `ValueSource` (or a list of them) document their own fiel
 
 - [Content Manager](../modules/content-manager.md) - view `idSource` and listing `entryIdSource`
 - [Resources Downloader](../modules/resources-downloader.md) - leaf `urlSources` and custom download steps
-- [Additional Pages](../modules/additional-pages.md) - optional `urlTemplate.source` for numbered URL templates
+- [Additional Pages](../modules/additional-pages.md) - optional `urlTemplate.source` for numbered URL templates; a `query-param` source uses `key` as the page parameter
 
 ## Contributors
 

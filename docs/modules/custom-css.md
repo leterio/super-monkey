@@ -361,13 +361,14 @@ Super Monkey and feature modules expose stable attributes you can target from `s
 | Attribute                 | Set by               | Values / meaning                                       |
 | ------------------------- | -------------------- | ------------------------------------------------------ |
 | `data-sm-history`         | History              | `viewed`, `listed`, or `unread`                        |
+| `data-sm-history-group`   | History              | Content Manager group key that owns the history marker |
 | `data-sm-has-new-content` | History              | `"true"` when a new content selector matched           |
 | `data-sm-cm-viewed`       | Content Manager      | Space-separated group keys on view elements            |
 | `data-sm-cm-listed`       | Content Manager      | Space-separated group keys on listing entries          |
 | `data-sm-cm-<group>-id`   | Content Manager      | Resolved id for a listing entry in `group`             |
 | `data-sm-rd-mapped-by`    | Resources Downloader | Mapping key that claimed the element                   |
 | `data-sm-rd-decorated-by` | Resources Downloader | Mapping key that attached a download control           |
-| `data-sm-rd-state`        | Resources Downloader | Resource item state (`pending`, `progress`, `done`, …) |
+| `data-sm-rd-state`        | Resources Downloader | Item state on the mapped element and the decoration container (`pending`, `progress`, `done`, …) |
 
 Notification Bar layout variables: `--sm-nb-offset-top`, `--sm-nb-offset-bottom` on `:root`.
 

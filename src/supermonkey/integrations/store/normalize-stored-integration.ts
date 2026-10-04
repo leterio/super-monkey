@@ -1,5 +1,6 @@
 import { ContentManagerOpts } from "../../content-manager/metadata";
 import { Normalized, OptsNormalization } from "../../utils/opts/normalization";
+import { reportUnrecognizedKeys } from "../../utils/opts/opts-fields";
 import { trimArray } from "../../utils/arrays";
 import {
     hasPositiveAllowDenyPattern,
@@ -26,6 +27,15 @@ export function normalizeStoredIntegration(stored: unknown, mapKey: string): Nor
             walk.reject("integration", "invalid entry");
             return walk.finish<Integration>(undefined);
         }
+
+        reportUnrecognizedKeys(stored, [
+            "name",
+            "matchedDomains",
+            "mappedPages",
+            "contentManager",
+            "modules",
+            "defaults",
+        ], "", walk);
 
         const name = resolveIntegrationName(stored.name, mapKey);
         if (name == null) {
@@ -126,6 +136,8 @@ function readMappedPages(
             continue;
         }
 
+        reportUnrecognizedKeys(entry, ["name", "paths"], `mappedPages[${index}]`, walk);
+
         const name = typeof entry.name === "string" ? entry.name.trim() : "";
         if (!isValidId(name)) {
             walk.repair(`mappedPages[${index}]`, "mapped page dropped");
@@ -199,9 +211,14 @@ function readModules(value: unknown, walk: OptsNormalization): Record<string, In
     const modules: Record<string, IntegrationModule> = {};
     for (const [instanceName, raw] of Object.entries(value)) {
         if (!isValidId(instanceName) || !isPlainObject(raw) || typeof raw.module !== "string") {
+            if (isPlainObject(raw)) {
+                reportUnrecognizedKeys(raw, ["module", "opts"], `modules.${instanceName}`, walk);
+            }
             walk.repair(`modules.${instanceName}`, "module instance dropped");
             continue;
         }
+
+        reportUnrecognizedKeys(raw, ["module", "opts"], `modules.${instanceName}`, walk);
 
         const module = raw.module.trim();
         if (module.length === 0) {

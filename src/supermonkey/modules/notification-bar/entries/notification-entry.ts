@@ -11,6 +11,7 @@ export type NotificationEntryOpts = {
 
 export class NotificationEntry<OPTS extends NotificationEntryOpts = NotificationEntryOpts> {
     protected _state: ItemState = ItemState.PENDING;
+    private presented = true;
 
     protected _iconContainer?: HTMLElement | null = undefined;
     protected _menuContainer?: HTMLElement | null = undefined;
@@ -33,6 +34,7 @@ export class NotificationEntry<OPTS extends NotificationEntryOpts = Notification
     get iconContainer(): HTMLElement | undefined {
         if (this._iconContainer === undefined) {
             this._iconContainer = this.buildIconContainer();
+            this.applyPresented();
         }
         return this._iconContainer ?? undefined;
     }
@@ -40,8 +42,15 @@ export class NotificationEntry<OPTS extends NotificationEntryOpts = Notification
     get menuContainer(): HTMLElement | undefined {
         if (this._menuContainer === undefined) {
             this._menuContainer = this.buildMenuContainer();
+            this.applyPresented();
         }
         return this._menuContainer ?? undefined;
+    }
+
+    /** Shows or hides the icon and menu. Hiding closes an open menu. */
+    setVisible(visible: boolean): void {
+        this.presented = visible;
+        this.applyPresented();
     }
 
     get onClickHandler(): ((event: MouseEvent) => void) | undefined {
@@ -79,5 +88,18 @@ export class NotificationEntry<OPTS extends NotificationEntryOpts = Notification
 
     protected buildMenuContainer(): HTMLElement | null {
         return null;
+    }
+
+    private applyPresented(): void {
+        if (this._iconContainer != null) {
+            this._iconContainer.hidden = !this.presented;
+        }
+
+        if (this._menuContainer != null) {
+            this._menuContainer.hidden = !this.presented;
+            if (!this.presented) {
+                this._menuContainer.classList.remove("open");
+            }
+        }
     }
 }

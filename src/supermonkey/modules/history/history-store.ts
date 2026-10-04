@@ -91,18 +91,19 @@ export class HistoryStore {
 
     constructor(
         moduleName: string,
+        scopeId: string,
         listedConfiguration: ArrayConfiguration<string>,
         viewedConfiguration: ArrayConfiguration<string>,
         log: Logger,
     ) {
         this.listed = new HistoryBucket(
-            `${moduleName}-listed-insert`,
+            `${moduleName}-${scopeId}-listed-insert`,
             "listed",
             listedConfiguration,
             log,
         );
         this.viewed = new HistoryBucket(
-            `${moduleName}-viewed-insert`,
+            `${moduleName}-${scopeId}-viewed-insert`,
             "viewed",
             viewedConfiguration,
             log,

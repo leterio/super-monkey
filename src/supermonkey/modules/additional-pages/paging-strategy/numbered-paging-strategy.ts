@@ -119,14 +119,16 @@ export abstract class NumberedPagingStrategy implements PagingStrategy {
     }
 
     /**
-     * @throws When `resolvedUrlTemplate` is missing, lacks `{{NUMBER}}`, or is not a path/absolute http(s) URL
+     * @throws When `resolvedUrlTemplate` is missing, has neither `{{NUMBER}}` nor a page query parameter, or is not a path/absolute http(s) URL
      */
     validateContext(context: PaginationContext): void {
         const resolved = context.resolvedUrlTemplate;
+        const hasPageQueryParam = resolved?.pageQueryParam != null && resolved.pageQueryParam.length > 0;
 
-        if (resolved == null || !hasPageNumberPlaceholder(resolved.template)) {
+        if (resolved == null || (!hasPageQueryParam && !hasPageNumberPlaceholder(resolved.template))) {
             throw new Error(
-                `NumberedPagingStrategy: urlTemplate is required and must include ${NUMBERS_PLACEHOLDER}`,
+                `NumberedPagingStrategy: urlTemplate is required and must include ${NUMBERS_PLACEHOLDER}` +
+                " or a query-param source",
             );
         }
 
@@ -167,7 +169,11 @@ export class IncrementalNumberedPagingStrategy extends NumberedPagingStrategy {
         cursor: Page,
         _navigationPaginators?: PaginatorRefs[],
     ): Page[] {
-        if (context.resolvedUrlTemplate == null || requestedAdditionalPages <= 0) {
+        if (
+            context.resolvedUrlTemplate == null ||
+            requestedAdditionalPages <= 0 ||
+            IncrementalNumberedPagingStrategy.stopsWithoutKnownEnd(context)
+        ) {
             return [];
         }
 
@@ -199,7 +205,8 @@ export class IncrementalNumberedPagingStrategy extends NumberedPagingStrategy {
         if (
             context.resolvedUrlTemplate == null ||
             requestedAdditionalPages <= 0 ||
-            typeof cursor?.number !== "number"
+            typeof cursor?.number !== "number" ||
+            IncrementalNumberedPagingStrategy.stopsWithoutKnownEnd(context)
         ) {
             return [];
         }
@@ -210,6 +217,10 @@ export class IncrementalNumberedPagingStrategy extends NumberedPagingStrategy {
             .map(offset => cursor.number - offset - 1)
             .filter(pageNumber => pageNumber >= first)
             .map(pageNumber => this.createPage(context, pageNumber));
+    }
+
+    private static stopsWithoutKnownEnd(context: PaginationContext): boolean {
+        return context.totalPages == null && context.unboundedPaging === false;
     }
 }
 

@@ -31,6 +31,7 @@ const additionalPagesOptsForm: ModuleOptsForm = {
                     hydrateContext(group, rawBinder.contextManager);
                     hydratePaging(group, rawBinder.pagingStrategy);
                     hydratePageRequest(group, rawBinder.pageRequestOpts);
+                    group.pageFilter = stringListToCsv(rawBinder.pageFilter);
                 }
                 return group;
             });
@@ -95,10 +96,12 @@ const additionalPagesOptsForm: ModuleOptsForm = {
             }
 
             const pageRequestOpts = buildPageRequestOpts(group);
+            const pageFilter = splitCsv(group.pageFilter);
             groups[name] = {
                 contextManager: buildContextManager(group),
                 pagingStrategy: buildPagingStrategy(group),
                 ...(pageRequestOpts != null ? { pageRequestOpts } : {}),
+                ...(pageFilter.length > 0 ? { pageFilter } : {}),
             };
         }
         return {
@@ -163,6 +166,15 @@ function mountGroup(
         ), {
             path: base,
             help: "Required. Must match a Content Manager group name.",
+        });
+        ui.field(staging, `${id}-page-filter`, "Page filter", ui.textInput(
+            group.pageFilter,
+            (value) => {
+                group.pageFilter = value;
+            },
+        ), {
+            path: `${base}.pageFilter`,
+            help: "Optional. Comma-separated mapped page names. Prefix exclusions with !!. Empty = all pages.",
         });
         mountFields(staging, group, id, base, ui, render);
         while (staging.firstChild != null) {
@@ -311,17 +323,14 @@ function mountContextManagerFields(
             path: `${paginatorPath}.urlAttributes`,
             help: "Comma-separated attribute names, tried before href when reading page URLs.",
         });
-        ui.field(host, `${id}-index-immediate`, "Page index use immediate parent", ui.select(
-            ["false", "true"],
+        ui.field(host, `${id}-index-immediate`, "Page index use immediate parent", ui.checkbox(
             draft.pageIndexUseImmediateParent,
-            (value) => {
-                draft.pageIndexUseImmediateParent =
-                    value as DraftAdditionalPagesBinderFields["pageIndexUseImmediateParent"];
+            (checked) => {
+                draft.pageIndexUseImmediateParent = checked;
             },
-            { false: "No", true: "Yes" },
         ), {
             path: `${paginatorPath}.pageIndexDecoration.useImmediateParent`,
-            help: "When Yes, apply status/classes on the page-index match's parent. Wins over Closest selectors.",
+            help: "When checked, apply status/classes on the page-index match's parent. Wins over Closest selectors.",
         });
         ui.field(host, `${id}-index-closest`, "Page index closest selectors", ui.textInput(
             draft.pageIndexClosestSelectors,
@@ -341,32 +350,30 @@ function mountContextManagerFields(
             path: `${paginatorPath}.pageIndexDecoration.loadedPageClassNames`,
             help: "Comma-separated class names, applied to the page-index decoration target after load.",
         });
-        ui.field(host, `${id}-ignore-last`, "Ignore last page", ui.select(
-            ["false", "true"],
+        ui.field(host, `${id}-ignore-last`, "Ignore last page", ui.checkbox(
             draft.ignoreLastPage,
-            (value) => {
-                draft.ignoreLastPage = value as DraftAdditionalPagesBinderFields["ignoreLastPage"];
+            (checked) => {
+                draft.ignoreLastPage = checked;
             },
-            { false: "No", true: "Yes" },
         ), {
             path: `${contextPath}.ignoreLastPage`,
-            help: "When Yes, skips treating the last paginator control as a loadable page.",
+            help: "When checked, numbered strategies keep requesting the configured page count without a known last page. When unchecked, a missing pager or page indexes with no numbers stops further fetches.",
         });
     }
 
     if (draft.pagingType !== "next-link" || draft.contextType === "url") {
         ui.field(host, `${id}-url-kind`, "URL template kind", ui.select(
-            ["static", "source"],
+            ["static", "source", "path-suffix"],
             draft.urlTemplateKind,
             (value) => {
                 draft.urlTemplateKind =
                     value as DraftAdditionalPagesBinderFields["urlTemplateKind"];
                 rerender();
             },
-            { static: "Static template", source: "Value source" },
+            { static: "Static template", source: "Value source", "path-suffix": "Path suffix" },
         ), {
             path: urlTemplatePath,
-            help: "Static path/URL with {{NUMBER}}, or resolve a template string from the page.",
+            help: "Static path/URL with {{NUMBER}}, a value source, or a path suffix. A query-param source uses its key as the page parameter.",
         });
 
         if (draft.urlTemplateKind === "static") {
@@ -379,10 +386,20 @@ function mountContextManagerFields(
                 path: urlTemplatePath,
                 help: "Path or absolute URL containing {{NUMBER}}.",
             });
+        } else if (draft.urlTemplateKind === "path-suffix") {
+            ui.field(host, `${id}-path-suffix`, "Path suffix", ui.textInput(
+                draft.urlTemplate,
+                (value) => {
+                    draft.urlTemplate = value;
+                },
+            ), {
+                path: `${urlTemplatePath}.pathSuffix`,
+                help: "Suffix appended to the tab pathname. Starts with / and contains {{NUMBER}}. Example: /page/{{NUMBER}}.",
+            });
         } else {
             const sourceSection = injectSection(host, {
                 title: "URL template source",
-                subtitle: "Resolved string must include {{NUMBER}}. Same controls as Content Manager Value Source.",
+                subtitle: "A query-param source uses its key as the page parameter. Other sources resolve to a string that includes {{NUMBER}}.",
                 foldable: true,
                 folded: false,
             });
@@ -395,17 +412,14 @@ function mountContextManagerFields(
             );
         }
 
-        ui.field(host, `${id}-copy-query`, "Copy page query params", ui.select(
-            ["true", "false"],
+        ui.field(host, `${id}-copy-query`, "Copy page query params", ui.checkbox(
             draft.copyPageQueryParams,
-            (value) => {
-                draft.copyPageQueryParams =
-                    value as DraftAdditionalPagesBinderFields["copyPageQueryParams"];
+            (checked) => {
+                draft.copyPageQueryParams = checked;
             },
-            { true: "Yes", false: "No" },
         ), {
             path: `${urlTemplatePath}.copyPageQueryParams`,
-            help: "When Yes (default), copies the current tab query string onto built page URLs.",
+            help: "When checked (default), copies the current tab query string onto built page URLs. A query-param page key is then set to the page being fetched.",
         });
     }
 }
@@ -418,29 +432,23 @@ function mountPagingStrategyFields(
     ui: ModuleOptsFormContext["ui"],
 ): void {
     const pagingPath = `${groupPath}.pagingStrategy`;
-    ui.field(host, `${id}-num-zero`, "Numbering starts from zero", ui.select(
-        ["false", "true"],
+    ui.field(host, `${id}-num-zero`, "Numbering starts from zero", ui.checkbox(
         draft.numberingStartsFromZero,
-        (value) => {
-            draft.numberingStartsFromZero =
-                value as DraftAdditionalPagesBinderFields["numberingStartsFromZero"];
+        (checked) => {
+            draft.numberingStartsFromZero = checked;
         },
-        { false: "No", true: "Yes" },
     ), {
         path: `${pagingPath}.numberingStartsFromZero`,
-        help: "When Yes, {{NUMBER}} in built URLs starts at 0. Default No starts at 1.",
+        help: "When checked, {{NUMBER}} in built URLs starts at 0. Unchecked starts at 1.",
     });
-    ui.field(host, `${id}-label-zero`, "Label numbering starts from zero", ui.select(
-        ["false", "true"],
+    ui.field(host, `${id}-label-zero`, "Label numbering starts from zero", ui.checkbox(
         draft.numberingLabelStartsFromZero,
-        (value) => {
-            draft.numberingLabelStartsFromZero =
-                value as DraftAdditionalPagesBinderFields["numberingLabelStartsFromZero"];
+        (checked) => {
+            draft.numberingLabelStartsFromZero = checked;
         },
-        { false: "No", true: "Yes" },
     ), {
         path: `${pagingPath}.numberingLabelStartsFromZero`,
-        help: "When Yes, progress UI labels use zero-based numbers. Defaults to Numbering starts from zero.",
+        help: "When checked, progress UI labels use zero-based numbers. Defaults to Numbering starts from zero.",
     });
 }
 
@@ -452,6 +460,15 @@ function mountPageRequestFields(
     ui: ModuleOptsFormContext["ui"],
 ): void {
     const requestPath = `${groupPath}.pageRequestOpts`;
+    ui.field(host, `${id}-send-referer`, "Send \"Referer\" header", ui.checkbox(
+        draft.pageRequestSendReferer,
+        (checked) => {
+            draft.pageRequestSendReferer = checked;
+        },
+    ), {
+        path: `${requestPath}.sendReferer`,
+        help: "When checked, each page request sends Referer set to the open tab's origin. A Referer entry in the headers JSON is sent as written.",
+    });
     ui.field(host, `${id}-method`, "Page request method", ui.textInput(
         draft.pageRequestMethod,
         (value) => {
@@ -483,7 +500,7 @@ function hydrateContext(draft: DraftAdditionalPagesBinderFields, raw: unknown): 
         return;
     }
     draft.contextType = "dom";
-    draft.ignoreLastPage = raw.ignoreLastPage === true ? "true" : "false";
+    draft.ignoreLastPage = raw.ignoreLastPage === true;
     hydrateUrlTemplate(draft, raw.urlTemplate);
     if (isPlainObject(raw.paginatorSelectors)) {
         const selectors = raw.paginatorSelectors;
@@ -501,23 +518,15 @@ function hydratePageIndexDecoration(
     draft: DraftAdditionalPagesBinderFields,
     selectors: Record<string, unknown>,
 ): void {
-    draft.pageIndexUseImmediateParent = "false";
+    draft.pageIndexUseImmediateParent = false;
     draft.pageIndexClosestSelectors = "";
     draft.pageIndexLoadedPageClassNames = "";
 
     if (isPlainObject(selectors.pageIndexDecoration)) {
         const decoration = selectors.pageIndexDecoration;
-        draft.pageIndexUseImmediateParent =
-            decoration.useImmediateParent === true ? "true" : "false";
+        draft.pageIndexUseImmediateParent = decoration.useImmediateParent === true;
         draft.pageIndexClosestSelectors = stringListToCsv(decoration.closestSelectors);
         draft.pageIndexLoadedPageClassNames = stringListToCsv(decoration.loadedPageClassNames);
-    }
-
-    if (
-        draft.pageIndexLoadedPageClassNames.length === 0
-        && selectors.loadedPageClassNames != null
-    ) {
-        draft.pageIndexLoadedPageClassNames = stringListToCsv(selectors.loadedPageClassNames);
     }
 }
 
@@ -525,14 +534,20 @@ function hydrateUrlTemplate(draft: DraftAdditionalPagesBinderFields, raw: unknow
     if (typeof raw === "string") {
         draft.urlTemplateKind = "static";
         draft.urlTemplate = raw;
-        draft.copyPageQueryParams = "true";
+        draft.copyPageQueryParams = true;
         draft.urlTemplateSource = emptyValueSource();
         return;
     }
     if (!isPlainObject(raw)) {
         return;
     }
-    draft.copyPageQueryParams = raw.copyPageQueryParams === false ? "false" : "true";
+    draft.copyPageQueryParams = raw.copyPageQueryParams !== false;
+    if (typeof raw.pathSuffix === "string") {
+        draft.urlTemplateKind = "path-suffix";
+        draft.urlTemplate = raw.pathSuffix;
+        draft.urlTemplateSource = emptyValueSource();
+        return;
+    }
     if (typeof raw.template === "string") {
         draft.urlTemplateKind = "static";
         draft.urlTemplate = raw.template;
@@ -553,11 +568,11 @@ function hydratePaging(draft: DraftAdditionalPagesBinderFields, raw: unknown): v
     if (raw.type === "next-link" || raw.type === "incremental" || raw.type === "decremental") {
         draft.pagingType = raw.type;
     }
-    draft.numberingStartsFromZero = raw.numberingStartsFromZero === true ? "true" : "false";
+    draft.numberingStartsFromZero = raw.numberingStartsFromZero === true;
     if (raw.numberingLabelStartsFromZero === true) {
-        draft.numberingLabelStartsFromZero = "true";
+        draft.numberingLabelStartsFromZero = true;
     } else if (raw.numberingLabelStartsFromZero === false) {
-        draft.numberingLabelStartsFromZero = "false";
+        draft.numberingLabelStartsFromZero = false;
     } else {
         draft.numberingLabelStartsFromZero = draft.numberingStartsFromZero;
     }
@@ -570,6 +585,7 @@ function hydratePageRequest(draft: DraftAdditionalPagesBinderFields, raw: unknow
     if (typeof raw.method === "string") {
         draft.pageRequestMethod = raw.method;
     }
+    draft.pageRequestSendReferer = raw.sendReferer !== false;
     if (isPlainObject(raw.headers)) {
         draft.pageRequestHeadersJson = JSON.stringify(raw.headers, null, 2);
     }
@@ -604,14 +620,14 @@ function buildContextManager(draft: DraftAdditionalPagesBinderFields): Record<st
             ...(pageIndexDecoration != null ? { pageIndexDecoration } : {}),
         },
         ...(urlTemplate != null ? { urlTemplate } : {}),
-        ignoreLastPage: draft.ignoreLastPage === "true",
+        ignoreLastPage: draft.ignoreLastPage,
     };
 }
 
 function buildPageIndexDecoration(
     draft: DraftAdditionalPagesBinderFields,
 ): Record<string, unknown> | undefined {
-    const useImmediateParent = draft.pageIndexUseImmediateParent === "true";
+    const useImmediateParent = draft.pageIndexUseImmediateParent;
     const closestSelectors = splitCsv(draft.pageIndexClosestSelectors);
     const loadedPageClassNames = splitCsv(draft.pageIndexLoadedPageClassNames);
 
@@ -631,11 +647,22 @@ function buildPageIndexDecoration(
 }
 
 function buildUrlTemplate(draft: DraftAdditionalPagesBinderFields): unknown {
-    const copyPageQueryParams = draft.copyPageQueryParams === "true";
+    const copyPageQueryParams = draft.copyPageQueryParams;
 
     if (draft.urlTemplateKind === "source") {
         return {
             source: draftToValueSource(draft.urlTemplateSource),
+            copyPageQueryParams,
+        };
+    }
+
+    if (draft.urlTemplateKind === "path-suffix") {
+        const pathSuffix = draft.urlTemplate.trim();
+        if (pathSuffix.length === 0) {
+            return undefined;
+        }
+        return {
+            pathSuffix,
             copyPageQueryParams,
         };
     }
@@ -660,8 +687,8 @@ function buildPagingStrategy(draft: DraftAdditionalPagesBinderFields): Record<st
     }
     return {
         type: draft.pagingType,
-        numberingStartsFromZero: draft.numberingStartsFromZero === "true",
-        numberingLabelStartsFromZero: draft.numberingLabelStartsFromZero === "true",
+        numberingStartsFromZero: draft.numberingStartsFromZero,
+        numberingLabelStartsFromZero: draft.numberingLabelStartsFromZero,
     };
 }
 
@@ -689,12 +716,13 @@ function buildPageRequestOpts(
             // Leave invalid headers out; normalization/validation catches incomplete opts.
         }
     }
-    if (method.length === 0 && headers == null) {
+    if (method.length === 0 && headers == null && draft.pageRequestSendReferer) {
         return undefined;
     }
     return {
         ...(method.length > 0 ? { method } : {}),
         ...(headers != null ? { headers } : {}),
+        ...(draft.pageRequestSendReferer ? {} : { sendReferer: false }),
     };
 }
 
@@ -714,24 +742,26 @@ function emptyGroupBinder(name = ""): DraftAdditionalPagesGroup {
         name,
         contextType: "dom",
         pagingType: "next-link",
-        ignoreLastPage: "false",
+        ignoreLastPage: false,
         urlTemplateKind: "static",
         urlTemplate: "",
         urlTemplateSource: emptyValueSource(),
-        copyPageQueryParams: "true",
+        copyPageQueryParams: true,
         rootContainers: "",
         previousSelectors: "",
         nextSelectors: "",
         currentSelectors: "",
         pageIndexes: "",
         urlAttributes: "",
-        pageIndexUseImmediateParent: "false",
+        pageIndexUseImmediateParent: false,
         pageIndexClosestSelectors: "",
         pageIndexLoadedPageClassNames: "",
-        numberingStartsFromZero: "false",
-        numberingLabelStartsFromZero: "false",
+        numberingStartsFromZero: false,
+        numberingLabelStartsFromZero: false,
         pageRequestMethod: "",
         pageRequestHeadersJson: "",
+        pageRequestSendReferer: true,
+        pageFilter: "",
     };
 }
 

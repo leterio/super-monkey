@@ -51,7 +51,7 @@ const contentManagerSection: EditorSection = {
             },
         ), {
             path: "contentManager.scanMode",
-            help: "On load scans each CONTENT_LOADED. Interval also rescans selector views and listings on a timer.",
+            help: "On load scans each CONTENT_LOADED and watches same-document URL changes, including URL-only views. Interval rescans selector views and listings on a timer and includes URL-only views when the URL changes. The URL watcher and the interval do not run together.",
         });
         ui.field(section, "cm-scan-interval", "Scan interval (ms)", ui.textInput(
             draft.scanIntervalMs,

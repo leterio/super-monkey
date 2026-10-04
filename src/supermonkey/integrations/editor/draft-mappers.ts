@@ -74,13 +74,17 @@ export type DraftKeyboardNavigationOpts = {
     nextSelectors: string;
 };
 
-export type DraftHistoryOpts = {
-    group: string;
+export type DraftHistoryGroup = {
+    name: string;
     newContentSelectors: string;
     recordFilter: string;
     decorateFilter: string;
     viewedStyles: string;
     listedStyles: string;
+};
+
+export type DraftHistoryOpts = {
+    groups: DraftHistoryGroup[];
 };
 
 export type DraftCustomCssOption = {
@@ -103,7 +107,7 @@ export type DraftCustomCssRule = {
     css: string;
     label: string;
     description: string;
-    defaultValueBoolean: "true" | "false";
+    defaultValueBoolean: boolean;
     defaultValueNumber: string;
     min: string;
     max: string;
@@ -146,24 +150,26 @@ export type DraftAdditionalPagesGroup = {
 export type DraftAdditionalPagesBinderFields = {
     contextType: "dom" | "url";
     pagingType: "next-link" | "incremental" | "decremental";
-    ignoreLastPage: "true" | "false";
-    urlTemplateKind: "static" | "source";
+    ignoreLastPage: boolean;
+    urlTemplateKind: "static" | "source" | "path-suffix";
     urlTemplate: string;
     urlTemplateSource: DraftValueSource;
-    copyPageQueryParams: "true" | "false";
+    copyPageQueryParams: boolean;
     rootContainers: string;
     previousSelectors: string;
     nextSelectors: string;
     currentSelectors: string;
     pageIndexes: string;
     urlAttributes: string;
-    pageIndexUseImmediateParent: "true" | "false";
+    pageIndexUseImmediateParent: boolean;
     pageIndexClosestSelectors: string;
     pageIndexLoadedPageClassNames: string;
-    numberingStartsFromZero: "true" | "false";
-    numberingLabelStartsFromZero: "true" | "false";
+    numberingStartsFromZero: boolean;
+    numberingLabelStartsFromZero: boolean;
     pageRequestMethod: string;
     pageRequestHeadersJson: string;
+    pageRequestSendReferer: boolean;
+    pageFilter: string;
 };
 
 export type DraftAdditionalPagesOpts = {
@@ -177,12 +183,12 @@ export type DraftRdUrlSource = {
 };
 
 export type DraftRdDecoration = {
-    wrapElement: "true" | "false";
+    wrapElement: boolean;
     wrapClasses: string;
-    wrapCopyElementClasses: "true" | "false";
-    useImmediateParent: "true" | "false";
+    wrapCopyElementClasses: boolean;
+    useImmediateParent: boolean;
     closestSelectors: string;
-    overridePosition: "true" | "false";
+    overridePosition: boolean;
 };
 
 export type DraftRdMapping = {
@@ -190,20 +196,24 @@ export type DraftRdMapping = {
     type: "leaf" | "collection";
     selectors: string;
     pageFilter: string;
-    ignoreDecoration: "true" | "false";
+    ignoreDecoration: boolean;
     decoration: DraftRdDecoration;
     urlSources: DraftRdUrlSource[];
     downloadMode: string;
+    sendReferer: boolean;
     children: string;
+    keepSingleLeaf: boolean;
 };
 
 export type DraftRdDownloadStep = {
     mode: "document" | "download";
     valueSource: DraftValueSource;
+    selectorMatch: "all" | "priority";
     method: string;
     headersJson: string;
     dataJson: string;
     timeout: string;
+    sendReferer: boolean;
 };
 
 export type DraftRdDownloadMode = {

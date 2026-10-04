@@ -5,8 +5,10 @@ import { SuperMonkey } from "../../supermonkey";
 import { sleep } from "../../utils/async";
 import { ItemState } from "../../utils/item-state";
 import { Logger } from "../../utils/logger";
+import { passesPageFilter } from "../../utils/page-filter";
 import { isValidId } from "../../utils/string";
 import type { Configuration } from "../configuration/configuration";
+import { BooleanConfiguration } from "../configuration/impl/boolean";
 import { NumberConfiguration } from "../configuration/impl/number";
 import { Module } from "../module";
 import type { NotificationEntry } from "../notification-bar/entries/notification-entry";
@@ -23,7 +25,9 @@ import {
     type PageFetcherRequestOpts,
 } from "./page-fetcher/page-fetcher";
 import {
+    displayLabelFromPageNumber,
     resolveNumberedPagingOpts,
+    type ResolvedNumberedPagingOpts,
 } from "./paging-strategy/numbered-paging-strategy";
 import {
     PagingStrategy,
@@ -38,6 +42,8 @@ type GroupBinderRuntime = {
     readonly contextManager: ContextManager;
     readonly pagingStrategy: PagingStrategy;
     readonly pageRequestOpts?: PageFetcherRequestOpts;
+    readonly pageFilter?: readonly string[];
+    readonly pageNumbering?: ResolvedNumberedPagingOpts;
     readonly pagesToLoadConfiguration: NumberConfiguration;
 };
 
@@ -74,11 +80,22 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
             description: "Per-request timeout in milliseconds.",
         },
     );
+    private readonly loadUntilVisibleConfiguration = new BooleanConfiguration(
+        this.name,
+        "loadUntilVisible",
+        false,
+        {
+            label: "Load Until Visible Item",
+            description:
+                "Keeps fetching the next page into the current listing until Content Manager keeps items for any group. Stops when a scan keeps items or there is no next page.",
+        },
+    );
 
     private readonly binders: ReadonlyMap<string, GroupBinderRuntime>;
     private readonly pageFetcher: PageFetcher = new PageFetcher();
     private readonly groupRuns: Map<string, GroupRun> = new Map();
     private readonly pageRuns: WeakMap<Page, GroupRun> = new WeakMap();
+    private readonly pageSummaries: Map<string, string> = new Map();
 
     constructor(name: string, opts: AdditionalPagesOpts) {
         super(name, opts);
@@ -103,6 +120,8 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
                         contextManager,
                         pagingStrategy,
                         pageRequestOpts: binder.pageRequestOpts,
+                        pageFilter: binder.pageFilter,
+                        ...(pageNumbering != null ? { pageNumbering } : {}),
                         pagesToLoadConfiguration: new NumberConfiguration(
                             this.name,
                             `pagesToLoad_${AdditionalPages.toConfigurationGroupId(groupKey)}`,
@@ -119,6 +138,16 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
                 ];
             }),
         );
+
+        for (const binder of this.binders.values()) {
+            binder.pagesToLoadConfiguration.watch(() => {
+                this.syncNotificationVisibility();
+            });
+        }
+        this.loadUntilVisibleConfiguration.watch(() => {
+            this.syncNotificationVisibility();
+        });
+        this.syncNotificationVisibility();
     }
 
     override get title(): string {
@@ -132,6 +161,7 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
     override get configurations(): Configuration[] {
         return [
             ...Array.from(this.binders.values(), (binder) => binder.pagesToLoadConfiguration),
+            this.loadUntilVisibleConfiguration,
             this.pageLoadIntervalConfiguration,
             this.pageLoadTimeoutConfiguration,
         ];
@@ -159,6 +189,8 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
         try {
             this.log.info("Preparing to load additional pages ...");
             this.groupRuns.clear();
+            this.pageSummaries.clear();
+            this.notificationIcon.setSubtitle(null);
 
             const contentManager = SuperMonkey.loadedIntegration?.contentManager;
             if (contentManager == null) {
@@ -167,30 +199,61 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
                 return;
             }
 
-            const matchingKeys = [...this.binders.keys()].filter((groupKey) =>
+            const activePages = SuperMonkey.loadedIntegration?.getActivePages() ?? [];
+            const listingKeys = [...this.binders.keys()].filter((groupKey) =>
                 contentManager.hasListingContext(sourceDocument, groupKey),
             );
 
-            if (matchingKeys.length === 0) {
+            if (listingKeys.length === 0) {
                 this.log.info("No matching Content Manager listing groups. Skipping.");
+                this.notificationIcon.state = ItemState.DONE;
+                return;
+            }
+
+            const matchingKeys = listingKeys.filter((groupKey) => {
+                const pageFilter = this.binders.get(groupKey)!.pageFilter;
+                if (passesPageFilter(pageFilter, activePages)) {
+                    return true;
+                }
+
+                this.log.info(
+                    "Group",
+                    groupKey,
+                    ": page filter does not match active pages. Skipping.",
+                );
+                return false;
+            });
+
+            if (matchingKeys.length === 0) {
+                this.log.info("No groups passed the page filter. Skipping.");
                 this.notificationIcon.state = ItemState.DONE;
                 return;
             }
 
             this.notificationIcon.state = ItemState.PROGRESS;
             let hasGroupFailure = false;
+            let itemsFound = false;
 
             for (const groupKey of matchingKeys) {
-                const binder = this.binders.get(groupKey)!;
-                const pagesToLoad = binder.pagesToLoadConfiguration.value;
-                if (pagesToLoad <= 0) {
-                    this.log.info("Group", groupKey, ": pagesToLoad is 0. Skipping fetch.");
-                    continue;
+                if (itemsFound) {
+                    break;
                 }
 
+                const binder = this.binders.get(groupKey)!;
+                const pagesToLoad = binder.pagesToLoadConfiguration.value;
+
                 try {
-                    this.notificationIcon.state = ItemState.PROGRESS;
-                    await this.runGroup(binder, pagesToLoad);
+                    if (pagesToLoad > 0) {
+                        this.notificationIcon.state = ItemState.PROGRESS;
+                        await this.runGroup(binder, pagesToLoad);
+                    } else {
+                        this.log.info("Group", groupKey, ": pagesToLoad is 0. Skipping the counted fetch.");
+                    }
+
+                    if (!itemsFound && this.loadUntilVisibleConfiguration.value) {
+                        this.notificationIcon.state = ItemState.PROGRESS;
+                        itemsFound = await this.fillUntilVisible(binder);
+                    }
                 } catch (error) {
                     this.log.error("Group", groupKey, "failed:", error);
                     hasGroupFailure = true;
@@ -213,10 +276,77 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
         binder: GroupBinderRuntime,
         pagesToLoad: number,
     ): Promise<void> {
+        const run = this.openGroupRun(binder, pagesToLoad);
+        const lastLoad = await this.loadPages(run);
+        this.finishLoadingPages(run, lastLoad);
+    }
+
+    private async fillUntilVisible(binder: GroupBinderRuntime): Promise<boolean> {
+        await Promise.resolve();
+
+        const contentManager = SuperMonkey.loadedIntegration?.contentManager;
+        if (contentManager == null) {
+            return false;
+        }
+
+        if (contentManager.hasListingItems()) {
+            this.log.info(
+                "Content Manager kept listing items. Stopping further loads for every group.",
+            );
+            return true;
+        }
+
+        const run = this.openGroupRun(binder, binder.pagesToLoadConfiguration.value);
+        let lastLoad: LoadedPageResult | null = null;
+
+        while (true) {
+            const nextPages = binder.pagingStrategy.resolveNextPages(
+                run.paginationContext,
+                1,
+                run.paginationContext.cursor,
+                lastLoad?.paginators,
+            );
+            if (nextPages.length === 0) {
+                this.log.info(
+                    "Group",
+                    binder.groupKey,
+                    ": Content Manager kept no listing items and there is no next page.",
+                );
+                break;
+            }
+
+            this.log.info(
+                "Group",
+                binder.groupKey,
+                ": Content Manager kept no listing items. Loading the next page.",
+            );
+            lastLoad = await this.loadResolvedNextPages(run, nextPages);
+            run.paginationContext.cursor = nextPages.at(-1)!;
+
+            if (contentManager.hasListingItems()) {
+                this.log.info(
+                    "Content Manager kept listing items. Stopping further loads for every group.",
+                );
+                this.finishLoadingPages(run, lastLoad);
+                return true;
+            }
+        }
+
+        this.finishLoadingPages(run, lastLoad);
+        return false;
+    }
+
+    private openGroupRun(binder: GroupBinderRuntime, pagesToLoad: number): GroupRun {
+        const existing = this.groupRuns.get(binder.groupKey);
+        if (existing != null) {
+            return existing;
+        }
+
         const paginationContext = binder.contextManager.resolveContext(
             binder.pagingStrategy.getDefaultPageNumber?.() ?? 1,
         );
         binder.pagingStrategy.validateContext(paginationContext);
+        this.noteNumberedPageSummary(binder, paginationContext);
 
         const run: GroupRun = {
             binder,
@@ -238,8 +368,7 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
             paginationContext.totalPages,
         );
 
-        const lastLoad = await this.loadPages(run);
-        this.finishLoadingPages(run, lastLoad);
+        return run;
     }
 
     private async loadPages(run: GroupRun): Promise<LoadedPageResult | null> {
@@ -494,6 +623,44 @@ export class AdditionalPages extends Module<AdditionalPagesOpts> {
 
     private areAllPagesDone(run: GroupRun): boolean {
         return Array.from(run.processedPages).every((page) => page.state === ItemState.DONE);
+    }
+
+    private syncNotificationVisibility(): void {
+        const visible = this.loadUntilVisibleConfiguration.value
+            || Array.from(this.binders.values()).some(
+                (binder) => binder.pagesToLoadConfiguration.value > 0,
+            );
+        this.notificationIcon.setVisible(visible);
+    }
+
+    private noteNumberedPageSummary(binder: GroupBinderRuntime, context: PaginationContext): void {
+        const numbering = binder.pageNumbering;
+        if (numbering == null || typeof context.totalPages !== "number") {
+            return;
+        }
+
+        const current = context.rootPage.label
+            ?? displayLabelFromPageNumber(context.rootPage.number, numbering);
+        const total = displayLabelFromPageNumber(context.totalPages, numbering);
+        this.pageSummaries.set(binder.groupKey, `Page: ${current} of ${total}`);
+        this.publishPageSummary();
+    }
+
+    private publishPageSummary(): void {
+        const entries = [...this.pageSummaries.entries()];
+        if (entries.length === 0) {
+            this.notificationIcon.setSubtitle(null);
+            return;
+        }
+
+        if (entries.length === 1) {
+            this.notificationIcon.setSubtitle(entries[0][1]);
+            return;
+        }
+
+        this.notificationIcon.setSubtitle(
+            entries.map(([groupKey, summary]) => `${groupKey}: ${summary}`).join(" · "),
+        );
     }
 
     private static toConfigurationGroupId(groupKey: string): string {

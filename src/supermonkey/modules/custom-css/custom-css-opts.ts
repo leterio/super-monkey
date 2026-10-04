@@ -1,5 +1,5 @@
 import { Normalized, OptsNormalization } from "../../utils/opts/normalization";
-import { readOptionalFiniteNumber, readStringList } from "../../utils/opts/opts-fields";
+import { readOptionalFiniteNumber, readStringList, reportUnrecognizedKeys } from "../../utils/opts/opts-fields";
 import { isValidId, trimToUndefined } from "../../utils/string";
 import { isPlainObject } from "../../utils/type";
 import type { ModuleOpts } from "../module";
@@ -78,6 +78,8 @@ export function normalizeCustomCssOpts(raw: unknown): Normalized<CustomCssOpts> 
         return walk.finish<CustomCssOpts>(undefined);
     }
 
+    reportUnrecognizedKeys(raw, ["static", "rules"], "", walk);
+
     const staticCss = normalizeStatic(raw.static, walk);
     const rules = normalizeRules(raw.rules, walk);
 
@@ -147,6 +149,8 @@ function normalizeRule(
         walk.repair(path, "rule must be an object");
         return undefined;
     }
+
+    reportUnrecognizedKeys(raw, customCssRuleKeys(raw.type), path, walk);
 
     const key = typeof raw.key === "string" ? raw.key.trim() : "";
     if (!isValidId(key)) {
@@ -236,6 +240,20 @@ function normalizeShadowFields(
     };
 }
 
+function customCssRuleKeys(type: unknown): readonly string[] {
+    const base = ["key", "css", "label", "description", "shadowRootSelectors", "onEventType", "type"];
+    switch (type) {
+        case "boolean":
+            return [...base, "defaultValue"];
+        case "number":
+            return [...base, "defaultValue", "min", "max"];
+        case "options":
+            return [...base, "defaultValue", "options"];
+        default:
+            return [...base, "defaultValue", "min", "max", "options"];
+    }
+}
+
 function isCustomCssOnEventType(value: unknown): value is CustomCssOnEventType {
     return typeof value === "string" && (ON_EVENT_TYPES as readonly string[]).includes(value);
 }
@@ -309,6 +327,8 @@ function normalizeOptionsRule(
             walk.repair(optionPath, "option must be an object");
             return;
         }
+
+        reportUnrecognizedKeys(entry, ["label", "value"], optionPath, walk);
 
         const optionLabel = typeof entry.label === "string" ? entry.label.trim() : "";
         const optionValue = typeof entry.value === "string" ? entry.value.trim() : "";

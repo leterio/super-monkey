@@ -101,7 +101,7 @@ Payload (`ContentLoadedEventPayload`):
 | ---------- | ----------------------------------------------------------- |
 | `document` | Content document ready to scan (live tab or a fetched page) |
 
-On each emission, Content Manager runs a full scan (views then listings) on that document and starts interval rescans once when configured. Content-dependent modules (for example [Additional Pages](../modules/additional-pages.md)) override `onContentLoaded` and ignore foreign documents when they only act on the live tab.
+On each emission, Content Manager runs a full scan (views then listings) on that document and starts interval rescans once when configured. When scan mode is `onload`, a same-document URL change also scans the live tab document, including URL-only views. When scan mode is `interval`, the timer notices that URL change and the location watcher stays off. Content-dependent modules (for example [Additional Pages](../modules/additional-pages.md)) override `onContentLoaded` and ignore foreign documents when they only act on the live tab.
 
 `Component.onContentLoaded` handlers tolerate repeated `CONTENT_LOADED` emissions.
 

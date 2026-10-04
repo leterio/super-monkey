@@ -1,5 +1,5 @@
 import { Normalized, OptsNormalization } from "../../utils/opts/normalization";
-import { readStringList } from "../../utils/opts/opts-fields";
+import { readStringList, reportUnrecognizedKeys } from "../../utils/opts/opts-fields";
 import { normalizeValueSource } from "../../utils/opts/value-resolver-opts";
 import { isPlainObject } from "../../utils/type";
 import type { ModuleOpts } from "../module";
@@ -54,6 +54,7 @@ export type AdditionalPagesGroupBinder = {
     readonly contextManager: ContextManagerConfig;
     readonly pagingStrategy: PagingStrategyConfig;
     readonly pageRequestOpts?: PageFetcherRequestOpts;
+    readonly pageFilter?: readonly string[];
 };
 
 /** Integration opts for the Additional Pages module (`module: "AdditionalPages"`). */
@@ -73,13 +74,7 @@ export function normalizeAdditionalPagesOpts(raw: unknown): Normalized<Additiona
         return walk.finish<AdditionalPagesOpts>(undefined);
     }
 
-    if ("contextManager" in raw || "pagingStrategy" in raw) {
-        walk.reject(
-            "opts",
-            'flat contextManager/pagingStrategy is not supported; use groups.<contentManagerGroupKey>',
-        );
-        return walk.finish<AdditionalPagesOpts>(undefined);
-    }
+    reportUnrecognizedKeys(raw, ["groups"], "", walk);
 
     if (!isPlainObject(raw.groups)) {
         walk.reject("groups", "must be an object with at least one usable group binder");
@@ -102,6 +97,13 @@ export function normalizeAdditionalPagesOpts(raw: unknown): Normalized<Additiona
             walk.repair(groupPath, "binder must be an object");
             continue;
         }
+
+        reportUnrecognizedKeys(
+            binderRaw,
+            ["contextManager", "pagingStrategy", "pageRequestOpts", "pageFilter"],
+            groupPath,
+            walk,
+        );
 
         const binderWalk = new OptsNormalization();
         const contextManager = normalizeContextManager(
@@ -132,17 +134,28 @@ export function normalizeAdditionalPagesOpts(raw: unknown): Normalized<Additiona
                 binderWalk,
                 `${groupPath}.pageRequestOpts`,
             );
+            const pageFilter = readStringList(
+                binderRaw.pageFilter,
+                `${groupPath}.pageFilter`,
+                binderWalk,
+                { label: "pageFilter", onEmpty: "omit" },
+            );
 
             binder = {
                 contextManager,
                 pagingStrategy,
                 ...(pageRequestOpts != null ? { pageRequestOpts } : {}),
+                ...(pageFilter != null ? { pageFilter } : {}),
             };
         }
 
         const normalizedBinder = binderWalk.finish(binder);
         for (const finding of normalizedBinder.findings) {
-            walk.repair(finding.path, finding.message);
+            if (finding.kind === "unknown") {
+                walk.unknown(finding.path, finding.message);
+            } else {
+                walk.repair(finding.path, finding.message);
+            }
         }
 
         if (normalizedBinder.value == null) {
@@ -161,6 +174,29 @@ export function normalizeAdditionalPagesOpts(raw: unknown): Normalized<Additiona
     return walk.finish({ groups });
 }
 
+function contextManagerKeys(type: string): readonly string[] {
+    switch (type) {
+        case "dom":
+            return ["type", "paginatorSelectors", "urlTemplate", "ignoreLastPage"];
+        case "url":
+            return ["type", "urlTemplate"];
+        default:
+            return ["type", "paginatorSelectors", "urlTemplate", "ignoreLastPage"];
+    }
+}
+
+function pagingStrategyKeys(type: string): readonly string[] {
+    switch (type) {
+        case "next-link":
+            return ["type"];
+        case "incremental":
+        case "decremental":
+            return ["type", "numberingStartsFromZero", "numberingLabelStartsFromZero"];
+        default:
+            return ["type", "numberingStartsFromZero", "numberingLabelStartsFromZero"];
+    }
+}
+
 function normalizeContextManager(
     raw: unknown,
     walk: OptsNormalization,
@@ -172,6 +208,7 @@ function normalizeContextManager(
     }
 
     const type = typeof raw.type === "string" ? raw.type.trim() : "";
+    reportUnrecognizedKeys(raw, contextManagerKeys(type), pathPrefix, walk);
     switch (type) {
         case "dom":
             return normalizeDomContextManager(raw, walk, pathPrefix);
@@ -249,6 +286,16 @@ function normalizePaginatorSelectors(
         return undefined;
     }
 
+    reportUnrecognizedKeys(raw, [
+        "rootContainers",
+        "previousSelectors",
+        "nextSelectors",
+        "currentSelectors",
+        "pageIndexes",
+        "urlAttributes",
+        "pageIndexDecoration",
+    ], pathPrefix, walk);
+
     const rootContainers = readSelectorField(
         raw.rootContainers,
         `${pathPrefix}.rootContainers`,
@@ -292,10 +339,8 @@ function normalizePaginatorSelectors(
 
     const pageIndexDecoration = normalizePageIndexDecoration(
         raw.pageIndexDecoration,
-        raw.loadedPageClassNames,
         walk,
         `${pathPrefix}.pageIndexDecoration`,
-        `${pathPrefix}.loadedPageClassNames`,
     );
 
     return {
@@ -311,10 +356,8 @@ function normalizePaginatorSelectors(
 
 function normalizePageIndexDecoration(
     raw: unknown,
-    legacyLoadedPageClassNames: unknown,
     walk: OptsNormalization,
     path: string,
-    legacyPath: string,
 ): PageIndexDecoration | undefined {
     let block: Record<string, unknown> | undefined;
     if (raw == null) {
@@ -324,6 +367,11 @@ function normalizePageIndexDecoration(
         block = undefined;
     } else {
         block = raw;
+        reportUnrecognizedKeys(raw, [
+            "closestSelectors",
+            "useImmediateParent",
+            "loadedPageClassNames",
+        ], path, walk);
     }
 
     const closestSelectors = block != null
@@ -338,7 +386,7 @@ function normalizePageIndexDecoration(
         );
     }
 
-    let loadedPageClassNames = block != null
+    const loadedPageClassNames = block != null
         ? readStringList(
             block.loadedPageClassNames,
             `${path}.loadedPageClassNames`,
@@ -346,21 +394,6 @@ function normalizePageIndexDecoration(
             { label: "class names", onEmpty: "repair" },
         )
         : undefined;
-
-    const legacyClasses = readStringList(
-        legacyLoadedPageClassNames,
-        legacyPath,
-        walk,
-        { label: "class names", onEmpty: "repair" },
-    );
-    if (legacyClasses != null) {
-        if (loadedPageClassNames == null) {
-            walk.repair(legacyPath, "folded into pageIndexDecoration.loadedPageClassNames");
-            loadedPageClassNames = legacyClasses;
-        } else {
-            walk.repair(legacyPath, "ignored because pageIndexDecoration.loadedPageClassNames is set");
-        }
-    }
 
     if (
         !useImmediateParent
@@ -423,6 +456,7 @@ function normalizePagingStrategy(
     }
 
     const type = typeof raw.type === "string" ? raw.type.trim() : "";
+    reportUnrecognizedKeys(raw, pagingStrategyKeys(type), pathPrefix, walk);
     switch (type) {
         case "next-link":
             return { type: "next-link" };
@@ -518,6 +552,14 @@ function validateContextAndStrategyPair(
         return false;
     }
 
+    if ("pathSuffix" in urlTemplate && !hasPageNumberPlaceholder(urlTemplate.pathSuffix)) {
+        walk.repair(
+            `${contextManagerPathPrefix}.urlTemplate.pathSuffix`,
+            `required with ${NUMBERS_PLACEHOLDER} when pagingStrategy.type is "${pagingStrategy.type}"`,
+        );
+        return false;
+    }
+
     return true;
 }
 
@@ -534,6 +576,8 @@ function normalizePageRequestOpts(
         walk.repair(pathPrefix, "must be an object");
         return undefined;
     }
+
+    reportUnrecognizedKeys(raw, ["method", "headers", "sendReferer"], pathPrefix, walk);
 
     let method: string | undefined;
     if (raw.method != null) {
@@ -563,13 +607,19 @@ function normalizePageRequestOpts(
         }
     }
 
-    if (method == null && headers == null) {
+    if (raw.sendReferer != null && typeof raw.sendReferer !== "boolean") {
+        walk.repair(`${pathPrefix}.sendReferer`, "must be a boolean");
+    }
+    const omitReferer = raw.sendReferer === false;
+
+    if (method == null && headers == null && !omitReferer) {
         return undefined;
     }
 
     return {
         ...(method != null ? { method } : {}),
         ...(headers != null ? { headers } : {}),
+        ...(omitReferer ? { sendReferer: false } : {}),
     };
 }
 
@@ -599,11 +649,15 @@ function readUrlTemplate(
         return undefined;
     }
 
+    reportUnrecognizedKeys(raw, ["template", "source", "pathSuffix", "copyPageQueryParams"], path, walk);
+
     const hasTemplate = raw.template != null;
     const hasSource = raw.source != null;
+    const hasPathSuffix = raw.pathSuffix != null;
+    const selectedCount = Number(hasTemplate) + Number(hasSource) + Number(hasPathSuffix);
 
-    if (hasTemplate === hasSource) {
-        const message = "must define exactly one of template or source";
+    if (selectedCount !== 1) {
+        const message = "must define exactly one of template, source, or pathSuffix";
         if (options.required) {
             walk.reject(path, message);
         } else {
@@ -631,6 +685,23 @@ function readUrlTemplate(
 
         return {
             template,
+            copyPageQueryParams,
+        };
+    }
+
+    if (hasPathSuffix) {
+        const pathSuffix = readPathSuffix(
+            raw.pathSuffix,
+            `${path}.pathSuffix`,
+            walk,
+            options,
+        );
+        if (pathSuffix == null) {
+            return undefined;
+        }
+
+        return {
+            pathSuffix,
             copyPageQueryParams,
         };
     }
@@ -691,6 +762,44 @@ function readStaticUrlTemplateString(
     }
 
     return urlTemplate;
+}
+
+function readPathSuffix(
+    raw: unknown,
+    path: string,
+    walk: OptsNormalization,
+    options: { required: boolean },
+): string | undefined {
+    if (typeof raw !== "string" || raw.trim().length === 0) {
+        if (options.required) {
+            walk.reject(path, "must be a non-empty string");
+        } else {
+            walk.repair(path, "must be a non-empty string");
+        }
+        return undefined;
+    }
+
+    const pathSuffix = raw.trim();
+
+    if (!hasPageNumberPlaceholder(pathSuffix)) {
+        if (options.required) {
+            walk.reject(path, `must include ${NUMBERS_PLACEHOLDER}`);
+        } else {
+            walk.repair(path, `must include ${NUMBERS_PLACEHOLDER}`);
+        }
+        return undefined;
+    }
+
+    if (!pathSuffix.startsWith("/")) {
+        if (options.required) {
+            walk.reject(path, "must be a path starting with '/'");
+        } else {
+            walk.repair(path, "must be a path starting with '/'");
+        }
+        return undefined;
+    }
+
+    return pathSuffix;
 }
 
 function readCopyPageQueryParams(

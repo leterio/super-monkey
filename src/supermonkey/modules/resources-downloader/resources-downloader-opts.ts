@@ -1,5 +1,5 @@
 import { trimArray } from "../../utils/arrays";
-import { readStringList } from "../../utils/opts/opts-fields";
+import { readStringList, reportUnrecognizedKeys } from "../../utils/opts/opts-fields";
 import { Normalized, OptsNormalization } from "../../utils/opts/normalization";
 import { normalizeValueSource } from "../../utils/opts/value-resolver-opts";
 import { trimToUndefined } from "../../utils/string";
@@ -38,6 +38,8 @@ export function normalizeResourcesDownloaderOpts(raw: unknown): Normalized<Resou
         walk.reject("opts", "options must be an object");
         return walk.finish<ResourcesDownloaderOpts>(undefined);
     }
+
+    reportUnrecognizedKeys(raw, ["mappings", "downloadModes", "entryPoints"], "", walk);
 
     const userMappings = normalizeUserMappings(raw.mappings, walk);
     if (userMappings == null) {
@@ -90,7 +92,6 @@ export function normalizeResourcesDownloaderOpts(raw: unknown): Normalized<Resou
 
 /**
  * Drops user keys that are identical to a built-in mapping.
- * Heals opts that previously persisted consolidated builtins from save-time normalization.
  */
 function stripRedundantBuiltinUserMappings(
     userMappings: Record<string, ResourcesMapping>,
@@ -163,6 +164,42 @@ function normalizeUserMappings(
     return mappings;
 }
 
+function mappingKeys(type: unknown): readonly string[] {
+    const base = ["type", "selectors", "pageFilter", "ignoreDecoration", "decoration"];
+    if (type === "leaf") {
+        return [...base, "urlSources", "downloadMode", "sendReferer"];
+    }
+    if (type === "collection") {
+        return [...base, "children", "keepSingleLeaf"];
+    }
+    return [...base, "urlSources", "downloadMode", "sendReferer", "children"];
+}
+
+function downloadStepKeys(mode: unknown): readonly string[] {
+    if (mode === "download") {
+        return ["mode", "headers", "timeout", "sendReferer"];
+    }
+    if (mode === "document") {
+        return ["mode", "valueSource", "selectorMatch", "method", "headers", "data", "timeout", "sendReferer"];
+    }
+    return ["mode", "valueSource", "method", "headers", "data", "timeout", "sendReferer"];
+}
+
+function sendRefererField(
+    raw: unknown,
+    path: string,
+    walk: OptsNormalization,
+): { sendReferer: false } | Record<string, never> {
+    if (raw == null || raw === true) {
+        return {};
+    }
+    if (raw === false) {
+        return { sendReferer: false };
+    }
+    walk.repair(path, "sendReferer must be a boolean");
+    return {};
+}
+
 function normalizeMapping(
     raw: unknown,
     path: string,
@@ -172,6 +209,8 @@ function normalizeMapping(
         walk.repair(path, "mapping must be an object");
         return undefined;
     }
+
+    reportUnrecognizedKeys(raw, mappingKeys(raw.type), path, walk);
 
     const selectors = normalizeSelectors(raw.selectors, `${path}.selectors`, walk);
     if (selectors == null) {
@@ -235,6 +274,7 @@ function normalizeLeafMapping(
         ...base,
         urlSources,
         ...(downloadMode != null ? { downloadMode } : {}),
+        ...sendRefererField(raw.sendReferer, `${path}.sendReferer`, walk),
     };
 }
 
@@ -272,10 +312,13 @@ function normalizeCollectionMapping(
         return undefined;
     }
 
+    const keepSingleLeaf = raw.keepSingleLeaf === true ? true : undefined;
+
     return {
         type: "collection",
         ...base,
         children,
+        ...(keepSingleLeaf != null ? { keepSingleLeaf } : {}),
     };
 }
 
@@ -315,6 +358,15 @@ function normalizeDecoration(
         walk.repair(path, "decoration must be an object");
         return undefined;
     }
+
+    reportUnrecognizedKeys(raw, [
+        "wrapElement",
+        "wrapClasses",
+        "wrapCopyElementClasses",
+        "useImmediateParent",
+        "closestSelectors",
+        "overridePosition",
+    ], path, walk);
 
     const wrapClasses = readStringList(raw.wrapClasses, `${path}.wrapClasses`, walk, {
         label: "wrapClasses",
@@ -408,6 +460,8 @@ function normalizeDownloadModes(
             continue;
         }
 
+        reportUnrecognizedKeys(entry, ["name", "steps"], path, walk);
+
         const name = trimToUndefined(entry.name);
         if (name == null) {
             walk.repair(path, "name is required");
@@ -452,6 +506,8 @@ function normalizeDownloadSteps(
             walk.repair(stepPath, "step must be an object");
             continue;
         }
+
+        reportUnrecognizedKeys(entry, downloadStepKeys(entry.mode), stepPath, walk);
 
         if (entry.mode === "download") {
             const downloadStep = normalizeFinalDownloadStep(entry, stepPath, walk);
@@ -512,6 +568,7 @@ function normalizeFinalDownloadStep(
         mode: "download",
         ...(headers != null ? { headers } : {}),
         ...(timeout != null ? { timeout } : {}),
+        ...sendRefererField(entry.sendReferer, `${stepPath}.sendReferer`, walk),
     };
 }
 
@@ -550,11 +607,28 @@ function normalizeDocumentStep(
     return {
         mode: "document",
         valueSource,
+        ...selectorMatchField(entry.selectorMatch, `${stepPath}.selectorMatch`, walk),
         ...(method != null ? { method } : {}),
         ...(headers != null ? { headers } : {}),
         ...(data != null ? { data } : {}),
         ...(timeout != null ? { timeout } : {}),
+        ...sendRefererField(entry.sendReferer, `${stepPath}.sendReferer`, walk),
     };
+}
+
+function selectorMatchField(
+    raw: unknown,
+    path: string,
+    walk: OptsNormalization,
+): { selectorMatch: "priority" } | Record<string, never> {
+    if (raw == null) {
+        return {};
+    }
+    if (raw === "priority") {
+        return { selectorMatch: "priority" };
+    }
+    walk.repair(path, 'selectorMatch must be "priority"');
+    return {};
 }
 
 function hasDocumentStepSelectors(valueSource: ValueSource): boolean {

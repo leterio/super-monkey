@@ -160,7 +160,8 @@ export class ResourcesMapper {
 
         element.setAttribute(MAPPED_BY_ATTR, mappedBy);
 
-        if (childResources.length === 1 && childResources[0]!.type === "leaf") {
+        const singleLeaf = childResources.length === 1 && childResources[0]!.type === "leaf";
+        if (singleLeaf && mapping.keepSingleLeaf !== true) {
             return [childResources[0]!];
         }
 

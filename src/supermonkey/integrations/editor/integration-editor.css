@@ -47,6 +47,15 @@
     display: none;
 }
 
+.sm-ite-panel .errors li {
+    white-space: pre-wrap;
+}
+
+.sm-ite-panel .errors strong+strong {
+    display: block;
+    margin-top: 0.85em;
+}
+
 .sm-ite-panel .errors ul {
     margin: 0.5em 0 0;
     padding-left: 1.35em;

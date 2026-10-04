@@ -1,4 +1,4 @@
-import { joinCsv, joinLines, randomString, splitCsv, splitLines } from "../../../utils/string";
+import { joinCsv, randomString, splitCsv } from "../../../utils/string";
 import { isPlainObject } from "../../../utils/type";
 import { injectSection } from "../../../utils/ui/ui-builder";
 import type { IntegrationValidationIssue } from "../../integration-validation";
@@ -251,16 +251,14 @@ function mountMappingFields(
         path: `${basePath}.pageFilter`,
         help: "Optional. Comma-separated mapped page names. Prefix exclusions with !!. Empty = all pages.",
     });
-    ui.field(host, `${id}-ignore-decoration`, "Ignore decoration", ui.select(
-        ["false", "true"],
+    ui.field(host, `${id}-ignore-decoration`, "Ignore decoration", ui.checkbox(
         mapping.ignoreDecoration,
-        (value) => {
-            mapping.ignoreDecoration = value as DraftRdMapping["ignoreDecoration"];
+        (checked) => {
+            mapping.ignoreDecoration = checked;
         },
-        { false: "No", true: "Yes" },
     ), {
         path: `${basePath}.ignoreDecoration`,
-        help: "When Yes, skip attaching a download control for this mapping.",
+        help: "When checked, skip attaching a download control for this mapping.",
     });
 
     if (mapping.type === "leaf") {
@@ -272,6 +270,15 @@ function mountMappingFields(
         ), {
             path: `${basePath}.downloadMode`,
             help: "Mode name. Empty uses built-in \"download\".",
+        });
+        ui.field(host, `${id}-send-referer`, "Send \"Referer\" header", ui.checkbox(
+            mapping.sendReferer,
+            (checked) => {
+                mapping.sendReferer = checked;
+            },
+        ), {
+            path: `${basePath}.sendReferer`,
+            help: "When checked, built-in mode \"download\" sends Referer set to the open tab's origin. Custom modes use each step's setting.",
         });
     }
 
@@ -305,15 +312,23 @@ function mountMappingFields(
             mountUrlSource(sourcesSection, source, mapping.urlSources, `${basePath}.urlSources`, ui);
         });
     } else {
-        ui.field(host, `${id}-children`, "Children", ui.textarea(
+        ui.field(host, `${id}-keep-single-leaf`, "Keep single leaf", ui.checkbox(
+            mapping.keepSingleLeaf,
+            (checked) => {
+                mapping.keepSingleLeaf = checked;
+            },
+        ), {
+            path: `${basePath}.keepSingleLeaf`,
+            help: "When checked, keep this collection when it has only one child leaf. Unchecked, that leaf replaces the collection.",
+        });
+        ui.field(host, `${id}-children`, "Children", ui.textInput(
             mapping.children,
             (value) => {
                 mapping.children = value;
             },
         ), {
             path: `${basePath}.children`,
-            help: "One mapping key per line to scan inside each matched container.",
-            column: true,
+            help: "Comma-separated mapping keys to scan inside each matched container.",
         });
     }
 }
@@ -331,48 +346,41 @@ function mountDecorationFields(
         foldable: true,
         folded: true,
     });
-    ui.field(section, `${id}-wrap`, "Wrap element", ui.select(
-        ["false", "true"],
+    ui.field(section, `${id}-wrap`, "Wrap element", ui.checkbox(
         decoration.wrapElement,
-        (value) => {
-            decoration.wrapElement = value as DraftRdDecoration["wrapElement"];
+        (checked) => {
+            decoration.wrapElement = checked;
         },
-        { false: "No", true: "Yes" },
     ), {
         path: `${basePath}.wrapElement`,
-        help: "When Yes, wrap the target in a container before attaching the button.",
+        help: "When checked, wrap the target in a container before attaching the button.",
     });
-    ui.field(section, `${id}-wrap-classes`, "Wrap classes", ui.textarea(
+    ui.field(section, `${id}-wrap-classes`, "Wrap classes", ui.textInput(
         decoration.wrapClasses,
         (value) => {
             decoration.wrapClasses = value;
         },
     ), {
         path: `${basePath}.wrapClasses`,
-        help: "One class name per line. Applied to the wrap before copied or built-in classes.",
-        column: true,
+        help: "Comma-separated class names. Applied to the wrap before copied or built-in classes.",
     });
-    ui.field(section, `${id}-wrap-copy`, "Wrap copy element classes", ui.select(
-        ["false", "true"],
+    ui.field(section, `${id}-wrap-copy`, "Wrap copy element classes", ui.checkbox(
         decoration.wrapCopyElementClasses,
-        (value) => {
-            decoration.wrapCopyElementClasses = value as DraftRdDecoration["wrapCopyElementClasses"];
+        (checked) => {
+            decoration.wrapCopyElementClasses = checked;
         },
-        { false: "No", true: "Yes" },
     ), {
         path: `${basePath}.wrapCopyElementClasses`,
-        help: "When Yes, copy the target's classes onto the wrap.",
+        help: "When checked, copy the target's classes onto the wrap.",
     });
-    ui.field(section, `${id}-immediate`, "Use immediate parent", ui.select(
-        ["false", "true"],
+    ui.field(section, `${id}-immediate`, "Use immediate parent", ui.checkbox(
         decoration.useImmediateParent,
-        (value) => {
-            decoration.useImmediateParent = value as DraftRdDecoration["useImmediateParent"];
+        (checked) => {
+            decoration.useImmediateParent = checked;
         },
-        { false: "No", true: "Yes" },
     ), {
         path: `${basePath}.useImmediateParent`,
-        help: "When Yes, decorate the target's parent. Wins over Closest selectors.",
+        help: "When checked, decorate the target's parent. Wins over Closest selectors.",
     });
     ui.field(section, `${id}-closest`, "Closest selectors", ui.textInput(
         decoration.closestSelectors,
@@ -383,16 +391,14 @@ function mountDecorationFields(
         path: `${basePath}.closestSelectors`,
         help: "Comma-separated CSS selectors for element.closest. First match wins.",
     });
-    ui.field(section, `${id}-override-pos`, "Override position", ui.select(
-        ["false", "true"],
+    ui.field(section, `${id}-override-pos`, "Override position", ui.checkbox(
         decoration.overridePosition,
-        (value) => {
-            decoration.overridePosition = value as DraftRdDecoration["overridePosition"];
+        (checked) => {
+            decoration.overridePosition = checked;
         },
-        { false: "No", true: "Yes" },
     ), {
         path: `${basePath}.overridePosition`,
-        help: "When Yes, set position: relative on the decoration container.",
+        help: "When checked, set position: relative on the decoration container.",
     });
 }
 
@@ -582,6 +588,17 @@ function mountDownloadStep(
                 omitMapSteps: true,
                 pathPrefix: `${base}.valueSource`,
             });
+            ui.field(staging, `${id}-selector-match`, "Selector match", ui.select(
+                ["all", "priority"],
+                step.selectorMatch,
+                (value) => {
+                    step.selectorMatch = value as DraftRdDownloadStep["selectorMatch"];
+                },
+                { all: "All selectors", priority: "First selector with a value" },
+            ), {
+                path: `${base}.selectorMatch`,
+                help: "All selectors combine every match. First selector with a value uses that selector's URLs and skips the rest.",
+            });
             ui.field(staging, `${id}-method`, "Method", ui.textInput(step.method, (value) => {
                 step.method = value;
             }), {
@@ -589,6 +606,15 @@ function mountDownloadStep(
                 help: "Optional HTTP method for the document request (for example GET or POST).",
             });
         }
+        ui.field(staging, `${id}-send-referer`, "Send \"Referer\" header", ui.checkbox(
+            step.sendReferer,
+            (checked) => {
+                step.sendReferer = checked;
+            },
+        ), {
+            path: `${base}.sendReferer`,
+            help: "When checked, this step sends Referer set to the origin of the previous page. A Referer entry in Headers is sent as written.",
+        });
         ui.field(staging, `${id}-headers`, "Headers (JSON)", ui.textarea(
             step.headersJson,
             (value) => {
@@ -643,12 +669,14 @@ function mappingToDraft(key: string, raw: unknown): DraftRdMapping {
     draft.pageFilter = Array.isArray(raw.pageFilter)
         ? joinCsv(raw.pageFilter.filter((entry): entry is string => typeof entry === "string"))
         : "";
-    draft.ignoreDecoration = raw.ignoreDecoration === true ? "true" : "false";
+    draft.ignoreDecoration = raw.ignoreDecoration === true;
     draft.decoration = decorationToDraft(raw.decoration);
     draft.downloadMode = typeof raw.downloadMode === "string" ? raw.downloadMode : "";
+    draft.sendReferer = raw.sendReferer !== false;
     draft.children = Array.isArray(raw.children)
-        ? joinLines(raw.children.filter((entry): entry is string => typeof entry === "string"))
+        ? joinCsv(raw.children.filter((entry): entry is string => typeof entry === "string"))
         : "";
+    draft.keepSingleLeaf = raw.keepSingleLeaf === true;
     draft.urlSources = Array.isArray(raw.urlSources)
         ? raw.urlSources.map(urlSourceToDraft).filter((entry): entry is DraftRdUrlSource => entry != null)
         : [];
@@ -660,12 +688,12 @@ function decorationToDraft(raw: unknown): DraftRdDecoration {
     if (!isPlainObject(raw)) {
         return draft;
     }
-    draft.wrapElement = raw.wrapElement === true ? "true" : "false";
-    draft.wrapCopyElementClasses = raw.wrapCopyElementClasses === true ? "true" : "false";
-    draft.useImmediateParent = raw.useImmediateParent === true ? "true" : "false";
-    draft.overridePosition = raw.overridePosition === true ? "true" : "false";
+    draft.wrapElement = raw.wrapElement === true;
+    draft.wrapCopyElementClasses = raw.wrapCopyElementClasses === true;
+    draft.useImmediateParent = raw.useImmediateParent === true;
+    draft.overridePosition = raw.overridePosition === true;
     draft.wrapClasses = Array.isArray(raw.wrapClasses)
-        ? joinLines(raw.wrapClasses.filter((entry): entry is string => typeof entry === "string"))
+        ? joinCsv(raw.wrapClasses.filter((entry): entry is string => typeof entry === "string"))
         : "";
     draft.closestSelectors = Array.isArray(raw.closestSelectors)
         ? joinCsv(raw.closestSelectors.filter((entry): entry is string => typeof entry === "string"))
@@ -709,6 +737,9 @@ function downloadStepToDraft(raw: unknown): DraftRdDownloadStep | undefined {
     if (mode === "document" && isPlainObject(raw.valueSource)) {
         step.valueSource = valueSourceToDraft(raw.valueSource as ValueSource);
     }
+    if (mode === "document" && raw.selectorMatch === "priority") {
+        step.selectorMatch = "priority";
+    }
     step.method = typeof raw.method === "string" ? raw.method : "";
     step.timeout = typeof raw.timeout === "number" && Number.isFinite(raw.timeout)
         ? String(raw.timeout)
@@ -716,6 +747,7 @@ function downloadStepToDraft(raw: unknown): DraftRdDownloadStep | undefined {
     if (isPlainObject(raw.headers)) {
         step.headersJson = JSON.stringify(raw.headers, null, 2);
     }
+    step.sendReferer = raw.sendReferer !== false;
     if (raw.data != null) {
         step.dataJson = typeof raw.data === "string"
             ? JSON.stringify(raw.data)
@@ -735,15 +767,19 @@ function draftMappingToOpts(mapping: DraftRdMapping): Record<string, unknown> | 
         type: mapping.type,
         selectors,
         ...(pageFilter.length > 0 ? { pageFilter } : {}),
-        ...(mapping.ignoreDecoration === "true" ? { ignoreDecoration: true } : {}),
+        ...(mapping.ignoreDecoration ? { ignoreDecoration: true } : {}),
         ...(decoration != null ? { decoration } : {}),
     };
     if (mapping.type === "collection") {
-        const children = splitLines(mapping.children);
+        const children = splitCsv(mapping.children);
         if (children.length === 0) {
             return undefined;
         }
-        return { ...base, children };
+        return {
+            ...base,
+            children,
+            ...(mapping.keepSingleLeaf ? { keepSingleLeaf: true } : {}),
+        };
     }
     const urlSources = mapping.urlSources
         .map(draftUrlSourceToOpts)
@@ -756,21 +792,22 @@ function draftMappingToOpts(mapping: DraftRdMapping): Record<string, unknown> | 
         ...base,
         urlSources,
         ...(downloadMode.length > 0 ? { downloadMode } : {}),
+        ...(mapping.sendReferer ? {} : { sendReferer: false }),
     };
 }
 
 function draftDecorationToOpts(decoration: DraftRdDecoration): Record<string, unknown> | undefined {
-    const wrapClasses = splitLines(decoration.wrapClasses);
+    const wrapClasses = splitCsv(decoration.wrapClasses);
     const closestSelectors = splitCsv(decoration.closestSelectors);
     const value: Record<string, unknown> = {
-        ...(decoration.wrapElement === "true" ? { wrapElement: true } : {}),
+        ...(decoration.wrapElement ? { wrapElement: true } : {}),
         ...(wrapClasses.length > 0 ? { wrapClasses } : {}),
-        ...(decoration.wrapCopyElementClasses === "true" ? { wrapCopyElementClasses: true } : {}),
-        ...(decoration.useImmediateParent === "true" ? { useImmediateParent: true } : {}),
-        ...(decoration.useImmediateParent !== "true" && closestSelectors.length > 0
+        ...(decoration.wrapCopyElementClasses ? { wrapCopyElementClasses: true } : {}),
+        ...(decoration.useImmediateParent ? { useImmediateParent: true } : {}),
+        ...(!decoration.useImmediateParent && closestSelectors.length > 0
             ? { closestSelectors }
             : {}),
-        ...(decoration.overridePosition === "true" ? { overridePosition: true } : {}),
+        ...(decoration.overridePosition ? { overridePosition: true } : {}),
     };
     return Object.keys(value).length > 0 ? value : undefined;
 }
@@ -805,6 +842,7 @@ function draftDownloadStepToOpts(step: DraftRdDownloadStep): Record<string, unkn
             mode: "download",
             ...(headers != null ? { headers } : {}),
             ...(timeout != null ? { timeout } : {}),
+            ...(step.sendReferer ? {} : { sendReferer: false }),
         };
     }
     const data = parseDataJson(step.dataJson);
@@ -812,10 +850,12 @@ function draftDownloadStepToOpts(step: DraftRdDownloadStep): Record<string, unkn
     return {
         mode: "document",
         valueSource: draftToValueSource(step.valueSource),
+        ...(step.selectorMatch === "priority" ? { selectorMatch: "priority" as const } : {}),
         ...(method.length > 0 ? { method } : {}),
         ...(headers != null ? { headers } : {}),
         ...(data != null ? { data } : {}),
         ...(timeout != null ? { timeout } : {}),
+        ...(step.sendReferer ? {} : { sendReferer: false }),
     };
 }
 
@@ -868,22 +908,24 @@ function emptyMapping(): DraftRdMapping {
         type: "leaf",
         selectors: "",
         pageFilter: "",
-        ignoreDecoration: "false",
+        ignoreDecoration: false,
         decoration: emptyDecoration(),
         urlSources: [emptyUrlSource()],
         downloadMode: "",
+        sendReferer: true,
         children: "",
+        keepSingleLeaf: false,
     };
 }
 
 function emptyDecoration(): DraftRdDecoration {
     return {
-        wrapElement: "false",
+        wrapElement: false,
         wrapClasses: "",
-        wrapCopyElementClasses: "false",
-        useImmediateParent: "false",
+        wrapCopyElementClasses: false,
+        useImmediateParent: false,
         closestSelectors: "",
-        overridePosition: "false",
+        overridePosition: false,
     };
 }
 
@@ -902,10 +944,12 @@ function emptyDownloadStep(mode: "document" | "download"): DraftRdDownloadStep {
     return {
         mode,
         valueSource: emptyValueSource(),
+        selectorMatch: "all",
         method: "",
         headersJson: "",
         dataJson: "",
         timeout: "",
+        sendReferer: true,
     };
 }
 
@@ -920,7 +964,9 @@ function isEmptyMapping(mapping: DraftRdMapping): boolean {
         && mapping.selectors.trim().length === 0
         && mapping.downloadMode.trim().length === 0
         && mapping.children.trim().length === 0
-        && mapping.ignoreDecoration === "false"
+        && mapping.ignoreDecoration === false
+        && mapping.keepSingleLeaf === false
+        && mapping.sendReferer
         && mapping.urlSources.every((source) => source.kind === "attribute" && source.attribute.trim().length === 0);
 }
 
@@ -931,6 +977,7 @@ function isEmptyDownloadMode(mode: DraftRdDownloadMode): boolean {
             && step.headersJson.trim().length === 0
             && step.dataJson.trim().length === 0
             && step.timeout.trim().length === 0
+            && step.sendReferer
             && step.mode === "download");
 }
 

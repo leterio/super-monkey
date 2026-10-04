@@ -213,13 +213,11 @@ function mountRuleFields(
     });
 
     if (rule.type === "boolean") {
-        ui.field(host, `${id}-default-bool`, "Default", ui.select(
-            ["true", "false"],
+        ui.field(host, `${id}-default-bool`, "Default", ui.checkbox(
             rule.defaultValueBoolean,
-            (value) => {
-                rule.defaultValueBoolean = value as DraftCustomCssRule["defaultValueBoolean"];
+            (checked) => {
+                rule.defaultValueBoolean = checked;
             },
-            { true: "On", false: "Off" },
         ), {
             path: `${base}.defaultValue`,
             help: "Initial preference when the user has not chosen a value.",
@@ -357,7 +355,7 @@ function ruleToDraft(raw: unknown): DraftCustomCssRule | undefined {
     draft.description = typeof raw.description === "string" ? raw.description : "";
 
     if (type === "boolean") {
-        draft.defaultValueBoolean = raw.defaultValue === false ? "false" : "true";
+        draft.defaultValueBoolean = raw.defaultValue !== false;
     } else if (type === "number") {
         draft.defaultValueNumber = typeof raw.defaultValue === "number" && Number.isFinite(raw.defaultValue)
             ? String(raw.defaultValue)
@@ -432,7 +430,7 @@ function draftRuleToOpts(rule: DraftCustomCssRule):
     };
 
     if (rule.type === "boolean") {
-        base.defaultValue = rule.defaultValueBoolean === "true";
+        base.defaultValue = rule.defaultValueBoolean;
         return { ok: true, value: base };
     }
 
@@ -515,7 +513,7 @@ function emptyRule(type: DraftCustomCssRuleType = "boolean"): DraftCustomCssRule
         css: "",
         label: "",
         description: "",
-        defaultValueBoolean: "true",
+        defaultValueBoolean: true,
         defaultValueNumber: "0",
         min: "",
         max: "",

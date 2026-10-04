@@ -12,6 +12,7 @@ import {
 } from "../paging-strategy/numbered-paging-strategy";
 import {
     extractPageNumberFromUrl,
+    readPageNumberFromUrl,
     resolveUrlTemplate,
     type ResolvedUrlTemplate,
     type UrlTemplate,
@@ -23,7 +24,10 @@ export type DomContextManagerOpts = {
     readonly paginatorSelectors: PaginatorSelectors;
     /** Optional URL template for numbered strategies and page-number detection. */
     readonly urlTemplate?: UrlTemplate;
-    /** When `true`, leaves `totalPages` unset even if page indexes are visible. */
+    /**
+     * When `true`, numbered strategies keep building page URLs without a known last page.
+     * When omitted or `false`, an unresolved last page stops further fetches.
+     */
     readonly ignoreLastPage?: boolean;
 };
 
@@ -51,8 +55,15 @@ export class DomContextManager implements ContextManager {
         const templatePath = this.resolvedUrlTemplate?.template;
 
         const paginators = this.bindPaginators(document);
+        const ignoreLastPage = this.opts.ignoreLastPage === true;
         if (paginators.length === 0) {
-            this.log.warn("No paginators found for selector; continuing with empty paginators.");
+            if (ignoreLastPage) {
+                this.log.warn("No paginators found for selector; continuing with empty paginators.");
+            } else {
+                this.log.warn(
+                    "No paginators found for selector; last page is unknown, so no additional pages will be requested.",
+                );
+            }
         } else {
             this.log.debug("Found", paginators.length, "paginators on the current page.");
         }
@@ -74,14 +85,15 @@ export class DomContextManager implements ContextManager {
             this.log.debug("Created root page: number:", rootPage.number, "url:", rootPage.url);
         }
 
+        const totalPages = ignoreLastPage ? undefined : this.resolveTotalPages(paginators);
+
         const context: PaginationContext = {
             rootPage,
             cursor: rootPage,
-            totalPages: this.opts.ignoreLastPage === true
-                ? undefined
-                : this.resolveTotalPages(paginators),
+            totalPages,
             paginators,
             selectors: this.opts.paginatorSelectors,
+            ...(!ignoreLastPage && totalPages == null ? { unboundedPaging: false } : {}),
             ...(this.resolvedUrlTemplate != null
                 ? { resolvedUrlTemplate: this.resolvedUrlTemplate }
                 : {}),
@@ -192,6 +204,11 @@ export class DomContextManager implements ContextManager {
 
         if (url == null) {
             return null;
+        }
+
+        const resolved = this.resolvedUrlTemplate;
+        if (resolved != null) {
+            return readPageNumberFromUrl(url, resolved);
         }
 
         return extractPageNumberFromUrl(url, urlTemplate);
@@ -383,7 +400,10 @@ export class DomContextManager implements ContextManager {
                 }
             }
 
-            const fromLocation = extractPageNumberFromUrl(window.location.href, urlTemplate);
+            const resolved = this.resolvedUrlTemplate;
+            const fromLocation = resolved != null
+                ? readPageNumberFromUrl(window.location.href, resolved)
+                : extractPageNumberFromUrl(window.location.href, urlTemplate);
             if (fromLocation != null) {
                 return fromLocation;
             }

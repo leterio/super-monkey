@@ -66,6 +66,54 @@ export type DownloadOpts = {
 
 //#endregion
 
+//#region Referer
+
+/**
+ * Sets `Referer` to the origin of `pageUrl` when that header is absent.
+ * An existing `Referer` wins. An unusable `pageUrl` returns `headers` unchanged.
+ */
+export function withDefaultReferer(
+    headers: Record<string, string> | undefined,
+    pageUrl: string,
+): Record<string, string> | undefined {
+    if (hasRefererHeader(headers)) {
+        return headers;
+    }
+
+    const origin = originOf(pageUrl);
+    if (origin == null) {
+        return headers;
+    }
+
+    return {
+        ...headers,
+        Referer: origin,
+    };
+}
+
+function hasRefererHeader(headers: Record<string, string> | undefined): boolean {
+    if (headers == null) {
+        return false;
+    }
+
+    return Object.keys(headers).some((name) => name.toLowerCase() === "referer");
+}
+
+function originOf(pageUrl: string): string | undefined {
+    try {
+        const origin = new URL(pageUrl).origin;
+        if (origin.length === 0 || origin === "null") {
+            return undefined;
+        }
+
+        return origin;
+    } catch {
+        return undefined;
+    }
+}
+
+//#endregion
+
 //#region Errors
 
 /** Discriminator for {@link HttpRequestError} subclasses. */

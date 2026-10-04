@@ -1,6 +1,7 @@
 import { Integration, IntegrationModule } from "../integrations/metadata";
 import { Logger } from "../utils/logger";
-import { Normalized, formatOptsFinding } from "../utils/opts/normalization";
+import { Normalized, OptsNormalization, formatOptsFindingsOfKind } from "../utils/opts/normalization";
+import { reportUnrecognizedKeys } from "../utils/opts/opts-fields";
 import { mergeIds } from "../utils/string";
 import { isPlainObject } from "../utils/type";
 import { AdditionalPages } from "./additional-pages/additional-pages";
@@ -99,18 +100,20 @@ export class ModuleLoader {
                     findings: [],
                 };
 
-            if (normalized.value == null) {
-                throw new Error(
-                    `Invalid module options${normalized.findings.map(formatOptsFinding).join("")}`,
-                );
+            const unknown = formatOptsFindingsOfKind(normalized.findings, "unknown");
+            if (unknown.length > 0) {
+                this.log.warn("Unrecognized option keys:", instanceName, unknown);
             }
 
-            if (normalized.findings.length > 0) {
-                this.log.warn(
-                    "Module options were repaired:",
-                    instanceName,
-                    normalized.findings.map(formatOptsFinding).join(""),
-                );
+            if (normalized.value == null) {
+                const rejected = formatOptsFindingsOfKind(normalized.findings, "reject");
+                const repaired = formatOptsFindingsOfKind(normalized.findings, "repair");
+                throw new Error(`Invalid module options${rejected}${repaired}`);
+            }
+
+            const repaired = formatOptsFindingsOfKind(normalized.findings, "repair");
+            if (repaired.length > 0) {
+                this.log.warn("Module options were repaired:", instanceName, repaired);
             }
 
             return new loadable.constructor(instanceName, normalized.value);
@@ -163,14 +166,12 @@ export class ModuleLoader {
     private static readNotificationBarOpts(
         defaults: Readonly<Record<string, unknown>> | undefined,
     ): NotificationBarOpts {
-        const bag = defaults?.notificationBar;
-        if (!isPlainObject(bag)) {
-            return {};
+        const normalized = normalizeNotificationBarOpts(defaults?.notificationBar);
+        const unknown = formatOptsFindingsOfKind(normalized.findings, "unknown");
+        if (unknown.length > 0) {
+            this.log.warn("Unrecognized option keys:", "notificationBar", unknown);
         }
-
-        return {
-            ...(typeof bag.position === "string" ? { position: bag.position } : {}),
-        };
+        return normalized.value ?? {};
     }
 
     /** Whether `moduleKey` is a registered loadable module constructor. */
@@ -192,4 +193,19 @@ export class ModuleLoader {
     ): ((opts: unknown) => Normalized<object>) | undefined {
         return this.MAPPED_MODULES.get(moduleKey)?.optsNormalizer;
     }
+}
+
+/**
+ * Normalizes Notification Bar opts from `defaults.notificationBar`.
+ * The only contract field is `position`. Other keys are `unknown` findings.
+ */
+export function normalizeNotificationBarOpts(raw: unknown): Normalized<NotificationBarOpts> {
+    const walk = new OptsNormalization();
+    if (!isPlainObject(raw)) {
+        return walk.finish({});
+    }
+
+    reportUnrecognizedKeys(raw, ["position"], "defaults.notificationBar", walk);
+    const position = typeof raw.position === "string" ? raw.position : undefined;
+    return walk.finish(position != null ? { position } : {});
 }

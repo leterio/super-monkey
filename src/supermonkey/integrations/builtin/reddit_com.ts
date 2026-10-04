@@ -80,10 +80,13 @@ export const REDDIT_COM_INTEGRATION: Integration = {
         history: {
             module: "History",
             opts: {
-                group: "posts",
-                recordFilter: ["!!right-rail"],
-                listedStyles: `& shreddit-post, & reddit-pdp-right-rail-post > div { border-left: 0.15em solid yellow; }`,
-                viewedStyles: `& shreddit-post, & reddit-pdp-right-rail-post > div { border-left: 0.15em solid red; }`,
+                groups: {
+                    posts: {
+                        recordFilter: ["!!right-rail"],
+                        listedStyles: `& shreddit-post, & reddit-pdp-right-rail-post > div { border-left: 0.15em solid yellow; }`,
+                        viewedStyles: `& shreddit-post, & reddit-pdp-right-rail-post > div { border-left: 0.15em solid red; }`,
+                    },
+                },
             } as HistoryOpts,
         },
         customCss: {

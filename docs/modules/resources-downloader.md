@@ -26,7 +26,7 @@ In the [Integration editor](../integrations/editor-ui.md), set **Module key** to
 
 ## Options shape
 
-Stored and TypeScript integrations use this opts object (`module: "ResourcesDownloader"`). The browser editor exposes **Mappings** and optional **Download modes** as typed fields (selector lists use CSV; mapping children and wrap class lists use one value per line; URL sources may be attribute names or Value Source controls).
+Stored and TypeScript integrations use this opts object (`module: "ResourcesDownloader"`). The browser editor exposes **Mappings** and optional **Download modes** as typed fields (selector lists, mapping children, and wrap class lists use CSV; URL sources may be attribute names or Value Source controls).
 
 **Pattern A - One custom leaf on cards:**
 
@@ -188,6 +188,7 @@ Matches elements that each represent **one** downloadable resource.
 | `downloadMode`     | no       | Mode name (defaults to `"download"`)                                                                                                                                              |
 | `pageFilter`       | no       | Optional mapped-page names that gate this mapping. Empty/omitted runs on every page. See [Page filter](#page-filter)                                                              |
 | `ignoreDecoration` | no       | When `true`, skip the download button for this mapping                                                                                                                            |
+| `sendReferer`      | no       | When `false`, built-in mode `"download"` does not add a `Referer` header. Omitted sends `Referer` set to the open tab's origin. Custom modes use each step's `sendReferer`          |
 | `decoration`       | no       | Where/how to attach the button - see [Decoration](#decoration)                                                                                                                    |
 
 ## Collection mapping
@@ -201,9 +202,10 @@ Matches a **container**, then scans nested mapping keys inside it.
 | `children`         | yes      | Mapping keys to scan inside each container (must exist; cycles are rejected) |
 | `pageFilter`       | no       | Optional mapped-page names that gate this mapping. Empty/omitted runs on every page. See [Page filter](#page-filter) |
 | `ignoreDecoration` | no       | When `true`, skip decoration on the collection itself                        |
+| `keepSingleLeaf`   | no       | When `true`, a single child leaf stays inside the collection. Absent, that leaf replaces the collection |
 | `decoration`       | no       | See [Decoration](#decoration)                                                |
 
-A collection with a **single** child leaf is flattened to that leaf for the resource tree (the leaf keeps the child’s `mappedBy` and has no `parent`). The collection element still receives `data-sm-rd-mapped-by` with the **collection** key. Empty collections are omitted. Nested collections remain children of the parent collection.
+A collection with no matched children is omitted. With `keepSingleLeaf` absent, a collection with a **single** child leaf is replaced by that leaf: the leaf keeps the child’s `mappedBy` and has no `parent`. The collection element still receives `data-sm-rd-mapped-by` with the **collection** key. `keepSingleLeaf: true` keeps the collection in the resource tree with that leaf as its child, so the collection is decorated and carries `data-sm-rd-state`. A single nested collection stays a child of the parent collection. A collection with two or more children stays a collection.
 
 ## Page filter
 
@@ -235,6 +237,8 @@ Controls where the download button attaches relative to the matched element.
 | `closestSelectors`       | `string[]` for `element.closest` (first matching selector) as the decoration target              |
 | `overridePosition`       | Set `position: relative` on the decoration container                                             |
 
+The decoration container receives `data-sm-rd-decorated-by` (the mapping key) and `data-sm-rd-state` (the item state of the resource that attached the button). That `data-sm-rd-state` value stays aligned with the resource: `pending`, `progress`, `done`, `error`, `skipped`, `cancelled`. The matched element keeps its own `data-sm-rd-mapped-by` and `data-sm-rd-state`. When the container is the matched element, both attributes sit on that node. When decoration resolves to a parent, a closest match, or a wrap, `data-sm-rd-state` is present on the matched element and on the container.
+
 Style hooks for Custom CSS: `[data-sm-rd-mapped-by="…"]`, `[data-sm-rd-decorated-by="…"]`, `[data-sm-rd-state="…"]` - see [Custom CSS - Stable styling hooks](./custom-css.md#stable-styling-hooks).
 
 ## Download modes
@@ -246,16 +250,19 @@ Named pipelines in `downloadModes`. Leaf `downloadMode` selects which pipeline r
 | `name`  | Unique mode id (**must not** collide with `"download"`)     |
 | `steps` | Non-empty list of document steps, ending in a download step |
 
-**Document step** - `{ mode: "document", valueSource, method?, headers?, data?, timeout? }`
+**Document step** - `{ mode: "document", valueSource, selectorMatch?, method?, headers?, data?, timeout?, sendReferer? }`
 
 - Fetches an intermediate page (`GM_xmlhttpRequest`), parses HTML, resolves `valueSource` against that document.
 - `valueSource` must be an **element** source (`attribute`, `text`, or `srcset`) with at least one `selectors` entry. `query-param` and `path` are rejected for document steps.
+- Omitted `selectorMatch` combines distinct values from every selector. `selectorMatch: "priority"` walks `valueSource.selectors` in order and keeps every distinct value from the first selector that yields one. A selector whose matches yield no value is skipped, and the next entry is tried. Each array entry is one query; a comma inside a single entry remains one CSS selector list.
 - Relative URLs resolve against the fetched document’s final URL.
 - Step `data` fields that are ValueSource objects resolve against the **live leaf** element before the request.
+- When `sendReferer` is omitted or `true`, sends `Referer` set to the origin of the previous page. The first document step takes that origin from the open tab. A later document step takes it from the final URL of the previous document response. `sendReferer: false` leaves that header off. A `Referer` entry in `headers` is the value sent for that step.
 
-**Download step** - `{ mode: "download", headers?, timeout? }`
+**Download step** - `{ mode: "download", headers?, timeout?, sendReferer? }`
 
 - Must be the **last** step. If the last step is not `download`, normalization appends `{ mode: "download" }`. A `download` step anywhere else drops the mode.
+- Built-in mode `"download"` follows the leaf's `sendReferer`. A download step follows its own `sendReferer`. When that value is omitted or `true`, the request sends `Referer` set to the origin of the previous page: the open tab for built-in mode `"download"`, and the final URL of the last document response after document steps. `sendReferer: false` leaves that header off. A `Referer` entry in `headers` is the value sent for that step.
 
 | Mode         | Behavior                                                                            |
 | ------------ | ----------------------------------------------------------------------------------- |
@@ -289,7 +296,7 @@ Resources Downloader does not override `onIntegrationLoaded` or `onContentLoaded
 1. Take the entry’s managed element as the scan root (views without an element fall back to `document.body`).
 2. Match **entry-point** mappings in order (collections first, then leaves).
 3. Build a tree of leaves and collections; decorate new roots with a download control when decoration is enabled.
-4. Mark mapping targets with `data-sm-rd-mapped-by` (value = mapping key) so later scans skip them. Each mapped element also gets `data-sm-rd-state` with the resource’s item state. Decoration containers get `data-sm-rd-decorated-by` when a button is attached; a container that already has the attribute is not decorated again.
+4. Mark mapping targets with `data-sm-rd-mapped-by` (value = mapping key) so later scans skip them. Each mapped element gets `data-sm-rd-state` with that resource’s item state. When a download control is attached, the decoration container gets `data-sm-rd-decorated-by` and the same `data-sm-rd-state` value. Later state changes update the mapped element and that container. A container that already has `data-sm-rd-decorated-by` is not decorated again; its `data-sm-rd-state` continues to follow the resource that decorated it.
 
 DOM markers:
 
@@ -297,7 +304,7 @@ DOM markers:
 | ------------------------- | ------------------------------------------------------ |
 | `data-sm-rd-mapped-by`    | Mapping key that claimed the element                   |
 | `data-sm-rd-decorated-by` | Mapping key that attached a download control           |
-| `data-sm-rd-state`        | Resource item state (`pending`, `progress`, `done`, …) |
+| `data-sm-rd-state`        | Item state on the mapped element and on the decoration container (`pending`, `progress`, `done`, `error`, `skipped`, `cancelled`) |
 
 Content Manager event names and payloads: [Content Manager - Events](./content-manager.md#events).
 
@@ -321,7 +328,7 @@ After a non-abort network/pipeline failure, if the leaf’s `attempt` is less th
 
 Manual **Retry** / **Retry All** clear any queue membership and pending auto-retry timer, reset `attempt` to `1`, and re-admit (they ignore the `downloadRetries` ceiling for that fresh run).
 
-Status on the **resource element** uses `data-sm-rd-state` (`pending`, `progress`, `done`, `error`, `skipped`, `cancelled`), including while `pending`. Status on the **download button** uses `data-state` (`progress`, `done`, `error`, `skipped`, `cancelled`); that attribute is omitted while `pending`. Parent collections aggregate child status (progress → error → pending → done; `skipped` counts like done; `cancelled` like pending). The menu lists every admitted leaf with a resolved URL (including those waiting for execution). Collections do not appear as menu rows.
+Status on the **mapped element** and on the **decoration container** uses `data-sm-rd-state` (`pending`, `progress`, `done`, `error`, `skipped`, `cancelled`), including while `pending`. The container value follows the resource that attached the download control. Status on the **download button** uses `data-state` (`progress`, `done`, `error`, `skipped`, `cancelled`); that attribute is omitted while `pending`. Parent collections aggregate child status (progress → error → pending → done; `skipped` counts like done; `cancelled` like pending). The menu lists every admitted leaf with a resolved URL (including those waiting for execution). Collections do not appear as menu rows.
 
 The [progress menu](./notification-bar.md) also offers **Download All**, **Retry All**, and **Cancel All**. Download All admits every leaf that is pending, cancelled, or failed, after URL dedupe in walk order, and skips leaves already in the execution queue, executing, or waiting on an auto-retry timer. Leaves already `skipped` are not restarted by Download All; a manual click on a skipped leaf still runs. Retry All re-admits failed leaves with `attempt` reset to `1`. Cancel All cancels every leaf that is waiting in the execution queue, waiting on an auto-retry timer, or actively downloading.
 
@@ -345,7 +352,7 @@ Notification Bar: a `ProgressMenuEntry` exposes download progress plus **Downloa
 | Outcome    | When                                                                                                                                                                                                                                                                              |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Reject** | Raw opts are not an object; `mappings` missing/empty; no usable user mappings remain; no scannable **user entry points** (builtins alone are not enough).                                                                                                                         |
-| **Repair** | Bad mappings or download modes dropped; empty selectors / urlSources / children / `pageFilter` fixed or dropped; unknown `downloadMode` drops the leaf; cycles and dangling collection children removed; user keys identical to a built-in mapping removed; mid-pipeline `download` steps drop the mode; missing final `download` step is appended. |
+| **Repair** | Bad mappings or download modes dropped; empty selectors / urlSources / children / `pageFilter` fixed or dropped; unknown `downloadMode` drops the leaf; cycles and dangling collection children removed; user keys identical to a built-in mapping removed; mid-pipeline `download` steps drop the mode; missing final `download` step is appended; a non-boolean `sendReferer` is dropped; a `selectorMatch` other than `"priority"` is dropped. |
 
 The loader constructs `ResourcesDownloader` with the cleaned `value`. Repair findings log as WARN (`Module options were repaired:`). A missing `value` logs FATAL for that instance.
 

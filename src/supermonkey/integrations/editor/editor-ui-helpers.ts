@@ -25,6 +25,7 @@ export type EditorUiHelpers = {
     ): void;
     textInput(value: string, onInput: (value: string) => void): HTMLInputElement;
     textarea(value: string, onInput: (value: string) => void): HTMLTextAreaElement;
+    checkbox(checked: boolean, onChange: (checked: boolean) => void): HTMLInputElement;
     select(
         values: readonly string[],
         value: string,
@@ -67,6 +68,7 @@ export function createEditorUiHelpers(): EditorUiHelpers {
         field,
         textInput,
         textarea,
+        checkbox,
         select,
         removableSection,
         focusBlock,
@@ -114,6 +116,12 @@ function textInput(value: string, onInput: (value: string) => void): HTMLInputEl
 function textarea(value: string, onInput: (value: string) => void): HTMLTextAreaElement {
     const input = createElement("textarea", { value });
     input.addEventListener("input", () => onInput(input.value));
+    return input;
+}
+
+function checkbox(checked: boolean, onChange: (checked: boolean) => void): HTMLInputElement {
+    const input = createElement("input", { type: "checkbox", checked });
+    input.addEventListener("change", () => onChange(input.checked));
     return input;
 }
 

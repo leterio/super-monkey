@@ -8,6 +8,9 @@ export const enum HistoryState {
 /** DOM attribute carrying {@link HistoryState} on managed entry elements. */
 export const HISTORY_METADATA_KEY = "data-sm-history";
 
+/** DOM attribute naming the Content Manager group that owns the history marker. */
+export const HISTORY_GROUP_METADATA_KEY = "data-sm-history-group";
+
 /**
  * Marker set when new-content selectors match an entry.
  * Hide rules can spare the entry while this attribute is `"true"`.

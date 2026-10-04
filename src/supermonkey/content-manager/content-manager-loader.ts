@@ -1,5 +1,5 @@
 import { Logger } from "../utils/logger";
-import { formatOptsFinding } from "../utils/opts/normalization";
+import { formatOptsFindingsOfKind } from "../utils/opts/normalization";
 import { ContentManager } from "./content-manager";
 import { normalizeContentManagerOpts } from "./content-manager-opts";
 
@@ -38,20 +38,25 @@ export class ContentManagerLoader {
         }
 
         const normalized = normalizeContentManagerOpts(contentManagerOpts);
+        const unknown = formatOptsFindingsOfKind(normalized.findings, "unknown");
+        if (unknown.length > 0) {
+            this.log.warn("Unrecognized option keys:", unknown);
+        }
+
         if (normalized.value == null) {
+            const rejected = formatOptsFindingsOfKind(normalized.findings, "reject");
+            const repaired = formatOptsFindingsOfKind(normalized.findings, "repair");
             this.failLoad(
                 new Error(
-                    `Content manager options were rejected.${normalized.findings.map(formatOptsFinding).join("")}`,
+                    `Content manager options were rejected.${rejected}${repaired}`,
                 ),
             );
             return;
         }
 
-        if (normalized.findings.length > 0) {
-            this.log.warn(
-                "Content manager options were repaired:",
-                normalized.findings.map(formatOptsFinding).join(""),
-            );
+        const repaired = formatOptsFindingsOfKind(normalized.findings, "repair");
+        if (repaired.length > 0) {
+            this.log.warn("Content manager options were repaired:", repaired);
         }
 
         this.instance = new ContentManager(normalized.value);

@@ -3,6 +3,7 @@ import { Logger } from "../../../utils/logger";
 import {
     DECORATED_BY_ATTR,
     Resource,
+    RESOURCE_STATE_ATTR,
     ResourceDownloadClickHandler,
     ResourcesDecoration,
     ResourcesMapping,
@@ -43,6 +44,7 @@ export class ResourcesDecorator {
         if (container.hasAttribute(DECORATED_BY_ATTR)) {
             return;
         }
+        resource.decoratedElement = container;
 
         const button = createElement("button", {
             type: "button",
@@ -59,6 +61,9 @@ export class ResourcesDecorator {
 
         container.setAttribute(DECORATED_BY_ATTR, resource.mappedBy);
         resource.downloadButton = button;
+
+        container.setAttribute(RESOURCE_STATE_ATTR, resource.state);
+
         container.appendChild(button);
     }
 

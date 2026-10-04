@@ -10,7 +10,10 @@ import {
     type IsolatedFrame,
     UICSSMap,
 } from "../../utils/ui/ui-builder";
-import { IntegrationValidationIssue, validateIntegration } from "../integration-validation";
+import { OptsFinding } from "../../utils/opts/normalization";
+import { isPlainObject } from "../../utils/type";
+import { IntegrationValidationIssue, collectUnrecognizedOpts, confirmUnrecognizedOpts, validateIntegration } from "../integration-validation";
+import { UserIntegrationsStore } from "../store/user-integrations-store";
 import { IntegrationProvenance, IntegrationsRegistry } from "../integrations-registry";
 import { Integration } from "../metadata";
 import {
@@ -68,6 +71,8 @@ export class IntegrationEditorModal {
         private readonly draft: DraftIntegration,
         private readonly provenance?: IntegrationProvenance,
         private readonly initialIssues: IntegrationValidationIssue[] = [],
+        private readonly sourceRaw: unknown = undefined,
+        private readonly openingWarnings: readonly OptsFinding[] = [],
     ) { }
 
     static openCreate(): void {
@@ -82,15 +87,22 @@ export class IntegrationEditorModal {
     static openCreateFromImport(
         draft: DraftIntegration,
         issues: IntegrationValidationIssue[],
+        sourceRaw?: unknown,
     ): void {
-        this.open(new IntegrationEditorModal("create", draft, undefined, issues));
+        this.open(new IntegrationEditorModal("create", draft, undefined, issues, sourceRaw));
     }
 
     static openEdit(integration: Integration): void {
+        const stored = UserIntegrationsStore.loadAll()[integration.name];
+        const sourceRaw = stored ?? integration;
+        const draft = integrationToDraft(integration);
         this.open(new IntegrationEditorModal(
             "edit",
-            integrationToDraft(integration),
+            draft,
             IntegrationsRegistry.getProvenance(integration.name),
+            this.previewIssues(draft, sourceRaw),
+            sourceRaw,
+            collectUnrecognizedOpts(sourceRaw),
         ));
     }
 
@@ -129,7 +141,7 @@ export class IntegrationEditorModal {
         this.errorsEl = injectSection(panel, { classes: [CSSMap.ERRORS_CLASS] });
         this.errorsEl.hidden = true;
         this.buildFooter(panel);
-        if (this.initialIssues.length > 0) {
+        if (this.initialIssues.length > 0 || this.openingWarnings.length > 0) {
             this.showIssues(this.initialIssues);
         }
     }
@@ -277,12 +289,17 @@ export class IntegrationEditorModal {
 
         const result = validateIntegration(built.value, {
             mode: this.mode,
-            existingNames: new Set(
-                IntegrationsRegistry.getEffective().map((integration) => integration.name),
-            ),
+            existingNames: IntegrationEditorModal.existingNames(),
         });
         if (!result.valid || result.value == null) {
             this.showIssues(result.issues);
+            return;
+        }
+
+        if (
+            this.sourceRaw != null
+            && !confirmUnrecognizedOpts(collectUnrecognizedOpts(this.sourceRaw))
+        ) {
             return;
         }
 
@@ -349,30 +366,96 @@ export class IntegrationEditorModal {
         this.close();
     }
 
+    private static previewIssues(
+        draft: DraftIntegration,
+        sourceRaw: unknown,
+    ): IntegrationValidationIssue[] {
+        const issues: IntegrationValidationIssue[] = [];
+        const seen = new Set<string>();
+        const push = (issue: IntegrationValidationIssue): void => {
+            const key = `${issue.path}\0${issue.message}`;
+            if (seen.has(key)) {
+                return;
+            }
+            seen.add(key);
+            issues.push(issue);
+        };
+
+        const built = draftToIntegration(draft);
+        if (!built.ok) {
+            built.issues.forEach(push);
+        } else {
+            const result = validateIntegration(built.value, {
+                mode: "edit",
+                existingNames: this.existingNames(),
+            });
+            if (!result.valid) {
+                result.issues.forEach(push);
+            }
+        }
+
+        if (isPlainObject(sourceRaw)) {
+            const stored = validateIntegration(sourceRaw as Integration, {
+                mode: "edit",
+                existingNames: this.existingNames(),
+            });
+            if (!stored.valid) {
+                stored.issues.forEach(push);
+            }
+        }
+
+        return issues;
+    }
+
+    private static existingNames(): Set<string> {
+        return new Set(
+            IntegrationsRegistry.getEffective().map((integration) => integration.name),
+        );
+    }
+
     private showIssues(issues: readonly IntegrationValidationIssue[]): void {
         if (this.errorsEl == null) {
             return;
         }
-        this.errorsEl.hidden = false;
         this.errorsEl.replaceChildren();
-        injectElement(this.errorsEl, "strong", { innerText: "Fix the following before saving:" });
-        const list = injectElement(this.errorsEl, "ul");
+        if (issues.length === 0 && this.openingWarnings.length === 0) {
+            this.errorsEl.hidden = true;
+            return;
+        }
 
-        const targets = this.bodyEl != null
-            ? applyIssueHighlights(this.bodyEl, issues)
-            : new Map<string, HTMLElement>();
+        this.errorsEl.hidden = false;
+        if (issues.length > 0) {
+            injectElement(this.errorsEl, "strong", { innerText: "Fix the following before saving:" });
+            const list = injectElement(this.errorsEl, "ul");
+            const targets = this.bodyEl != null
+                ? applyIssueHighlights(this.bodyEl, issues)
+                : new Map<string, HTMLElement>();
 
-        for (const issue of issues) {
-            const label = issue.path.length > 0 ? `${issue.path}: ${issue.message}` : issue.message;
-            const target = targets.get(issue.path);
-            if (target != null) {
-                injectElement(list, "li", {
-                    innerText: label,
-                    classList: ["issue-link"],
-                }, {
-                    click: () => focusIssueTarget(target),
-                });
-            } else {
+            for (const issue of issues) {
+                const label = issue.path.length > 0 ? `${issue.path}: ${issue.message}` : issue.message;
+                const target = targets.get(issue.path);
+                if (target != null) {
+                    injectElement(list, "li", {
+                        innerText: label,
+                        classList: ["issue-link"],
+                    }, {
+                        click: () => focusIssueTarget(target),
+                    });
+                } else {
+                    injectElement(list, "li", { innerText: label });
+                }
+            }
+        }
+
+        if (this.openingWarnings.length > 0) {
+            injectElement(this.errorsEl, "strong", {
+                innerText: "Unrecognized keys will be dropped on save:",
+            });
+            const list = injectElement(this.errorsEl, "ul");
+            for (const finding of this.openingWarnings) {
+                const label = finding.path.length > 0
+                    ? `${finding.path}\n${finding.message}`
+                    : finding.message;
                 injectElement(list, "li", { innerText: label });
             }
         }

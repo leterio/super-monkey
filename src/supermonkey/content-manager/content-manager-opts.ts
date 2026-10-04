@@ -1,5 +1,5 @@
 import { Normalized, OptsFinding, OptsNormalization } from "../utils/opts/normalization";
-import { readStringList } from "../utils/opts/opts-fields";
+import { readStringList, reportUnrecognizedKeys } from "../utils/opts/opts-fields";
 import { normalizeValueSource, normalizeValueSources } from "../utils/opts/value-resolver-opts";
 import { trimToUndefined } from "../utils/string";
 import { isPlainObject } from "../utils/type";
@@ -32,6 +32,8 @@ export function normalizeContentManagerOpts(raw: unknown): Normalized<ContentMan
         walk.reject("contentManager", "options must be an object");
         return walk.finish<ContentManagerOpts>(undefined);
     }
+
+    reportUnrecognizedKeys(raw, ["groups", "scanMode", "scanIntervalMs"], "contentManager", walk);
 
     const scanMode = normalizeScanModeField(raw, walk);
     const scanIntervalMs = normalizeScanIntervalMs(raw, scanMode, walk);
@@ -118,6 +120,8 @@ function normalizeGroups(
                 walk.repair(groupPath, "group must be an object");
                 continue;
             }
+
+            reportUnrecognizedKeys(group, ["views", "listings"], groupPath, walk);
 
             if (!isUsableGroupShape(group as ContentManagerGroup)) {
                 walk.repair(groupPath, "at least one of views or listings is required");
@@ -225,10 +229,12 @@ function normalizeView(
     path: string,
     walk: OptsNormalization,
 ): ContentManagerView | undefined {
-    if (view == null || typeof view !== "object") {
+    if (!isPlainObject(view)) {
         walk.repair(path, "view must be an object");
         return undefined;
     }
+
+    reportUnrecognizedKeys(view, ["name", "selectors", "idSource", "pageFilter"], path, walk);
 
     let idSource: ContentManagerView["idSource"] | undefined;
     if (view.idSource == null) {
@@ -264,10 +270,20 @@ function normalizeListing(
     path: string,
     walk: OptsNormalization,
 ): ContentManagerListing | undefined {
-    if (listing == null || typeof listing !== "object") {
+    if (!isPlainObject(listing)) {
         walk.repair(path, "listing must be an object");
         return undefined;
     }
+
+    reportUnrecognizedKeys(listing, [
+        "name",
+        "containerSelectors",
+        "entriesSelectors",
+        "entryIdSource",
+        "entryContainerSelector",
+        "cleanup",
+        "pageFilter",
+    ], path, walk);
 
     let valid = true;
 
@@ -337,6 +353,8 @@ function normalizeListingCleanup(
         walk.repair(path, "cleanup must be an object");
         return undefined;
     }
+
+    reportUnrecognizedKeys(raw, ["removeNonEntities", "removeSelectors"], path, walk);
 
     const hasRemoveNonEntities = Object.prototype.hasOwnProperty.call(raw, "removeNonEntities");
     const hasRemoveSelectors = Object.prototype.hasOwnProperty.call(raw, "removeSelectors");

@@ -22,7 +22,7 @@ In the [Integration editor](../integrations/editor-ui.md), set **Module key** to
 
 ## Options shape
 
-Stored and TypeScript integrations use this opts object (`module: "AdditionalPages"`). The browser editor exposes the same fields as typed controls (selector lists, URL attributes, and loaded page class names use CSV). Each group binder keeps the Content Manager group name and the context/paging type selects visible; detail fields live in foldable **Context manager**, **Paging strategy** (numbered strategies only), and **Page request** sections that start collapsed.
+Stored and TypeScript integrations use this opts object (`module: "AdditionalPages"`). The browser editor exposes the same fields as typed controls (selector lists, URL attributes, loaded page class names, and page filters use CSV). Each group binder keeps the Content Manager group name, the page filter, and the context/paging type selects visible; detail fields live in foldable **Context manager**, **Paging strategy** (numbered strategies only), and **Page request** sections that start collapsed.
 
 **Pattern A - Follow the “next” link:**
 
@@ -65,7 +65,7 @@ Stored and TypeScript integrations use this opts object (`module: "AdditionalPag
 }
 ```
 
-Each key under `groups` is the exact name of a Content Manager group. A binder runs only when that group's listing matches the current document, including its listing `pageFilter`.
+Each key under `groups` is the exact name of a Content Manager group. A binder runs only when that group's listing matches the current document (including the listing `pageFilter`) and the binder's own `pageFilter` passes. See [Page filter](#page-filter).
 
 **Two Content Manager groups:**
 
@@ -93,13 +93,13 @@ Each key under `groups` is the exact name of a Content Manager group. A binder r
 }
 ```
 
-The `items` and `offers` keys match Content Manager group names. On each mapped page, listing `pageFilter` values determine which group binders are eligible to run. How many pages to load is a per-group **user** preference in the Configuration Menu - see [Runtime configurations](#runtime-configurations). Full field tables: [What you configure](#what-you-configure).
+The `items` and `offers` keys match Content Manager group names. A binder runs when that group's listing context is active and the binder `pageFilter` passes. How many pages to load is a per-group **user** preference in the Configuration Menu - see [Runtime configurations](#runtime-configurations). Full field tables: [What you configure](#what-you-configure).
 
 ## In the editor (Pattern A)
 
 1. Confirm Content Manager already has a **listing** for each group you want to extend ([Content Manager - In the editor](./content-manager.md#in-the-editor)).
 2. In **Modules**, add an instance with **Module key** `AdditionalPages`.
-3. Under **Groups**, add a group binder and set **Content Manager group name** to the exact group key, such as `items`.
+3. Under **Groups**, add a group binder and set **Content Manager group name** to the exact group key, such as `items`. Optional **Page filter** limits that binder to mapped-page names (comma-separated; prefix exclusions with `!!`). Leave it empty to run on every page.
 4. Set **Context manager type** to `DOM paginator` and **Paging strategy type** to `Next link`.
 5. Expand **Context manager** and set **Root containers** to `.pager` and **Next selectors** to `.pager-next` (comma-separated when listing more than one), or match Pattern B from [Options shape](#options-shape) (open **Paging strategy** for numbering options when using incremental/decremental). Expand **Page request** only when you need HTTP method or headers overrides. Repeat for other groups.
 6. Save, reload on a listing page, open Configuration, and set **Pages to Load (`groupKey`)** above **`0`** for the groups you want to fetch. Each preference defaults to `0` ([Runtime configurations](#runtime-configurations)).
@@ -211,9 +211,34 @@ Each value under `groups` is a binder:
 | ----------------- | -------- | ------------------------------------------------------------------------------- |
 | `contextManager`  | yes      | Discriminated object: `type` `"dom"` or `"url"` (see below)                     |
 | `pagingStrategy`  | yes      | Discriminated object: `type` `"next-link"`, `"incremental"`, or `"decremental"` |
-| `pageRequestOpts` | no       | Optional HTTP overrides for this group's requests (`method`, `headers`)         |
+| `pageFilter`      | no       | Optional mapped-page names that gate this binder. Empty or omitted runs on every page. See [Page filter](#page-filter) |
+| `pageRequestOpts` | no       | Optional HTTP overrides for this group's requests (`method`, `headers`, `sendReferer`) |
+
+Each page request sends `Referer` set to the open tab's origin, including requests for later pager pages, when `sendReferer` is omitted or `true`. `sendReferer: false` leaves that header off. A `Referer` entry in `headers` is the value sent for that group.
 
 How many pages to load and delays are **user** preferences in the Configuration Menu - see [Runtime configurations](#runtime-configurations). They are not integration opts.
+
+## Page filter
+
+Each group binder may set `pageFilter` against the integration's [mapped pages](../integrations/editor-ui.md#mapped-pages) ([TypeScript](../integrations/README.md#mapped-pages-typescript)). On each load run, Super Monkey keeps binders whose Content Manager listing matches the document, then skips any remaining binder that fails its own filter.
+
+Rules and `!!` exclusions: [Page filter](../utils/page-filter.md). Content Manager listings use the same helper — [Content Manager - Page filter](./content-manager.md#page-filter). Both filters apply: the listing `pageFilter` is part of `hasListingContext`, and the binder `pageFilter` is a second gate.
+
+```json
+{
+  "contextManager": {
+    "type": "dom",
+    "paginatorSelectors": {
+      "rootContainers": [".pager"],
+      "nextSelectors": [".pager-next"]
+    }
+  },
+  "pagingStrategy": { "type": "next-link" },
+  "pageFilter": ["catalog", "!!settings"]
+}
+```
+
+Spell mapped-page names exactly as defined under **Mapped pages**. A typo in `pageFilter` never matches, so an allowlist with an unknown name skips that binder on every URL.
 
 ## Context manager: `dom`
 
@@ -223,8 +248,8 @@ Use when the page shows a pager you can select in the DOM.
 | -------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `type`               | yes      | `"dom"`                                                                                                                             |
 | `paginatorSelectors` | yes      | Selector map for pager roots and controls (table below)                                                                             |
-| `urlTemplate`        | no\*     | Pattern with `{{NUMBER}}` for numbered strategies and for reading page numbers from links / the tab URL                             |
-| `ignoreLastPage`     | no       | When `true`, leaves `totalPages` unset even if page-index links are visible (use when the pager does not expose the real last page) |
+| `urlTemplate`        | no\*     | Pattern with `{{NUMBER}}`, a query-param value source whose `key` is the page parameter, or a `pathSuffix`                          |
+| `ignoreLastPage`     | no       | When `true`, numbered strategies build the configured page count even when page indexes are missing, empty, or do not show the real last page. When omitted or `false`, those strategies fetch further pages only when page-index numbers resolve a last page |
 
 \* Required when `pagingStrategy` is `"incremental"` or `"decremental"`.
 
@@ -261,29 +286,62 @@ Use when the current page number comes only from the tab URL (no pager DOM to bi
 | Field         | Required | What you set                                                    |
 | ------------- | -------- | --------------------------------------------------------------- |
 | `type`        | yes      | `"url"`                                                         |
-| `urlTemplate` | yes      | Must include `{{NUMBER}}` (see [URL templates](#url-templates)) |
+| `urlTemplate` | yes      | Pattern with `{{NUMBER}}`, a query-param value source whose `key` is the page parameter, or a `pathSuffix` (see [URL templates](#url-templates)) |
 
 Pair with `"incremental"` or `"decremental"`. There is no DOM pager update.
 
 ## URL templates
 
-Numbered strategies build each fetch URL from a template that still contains `{{NUMBER}}`. `"next-link"` ignores `urlTemplate` when composing URLs (it follows the next control).
+Numbered strategies build each fetch URL from a template that contains `{{NUMBER}}`, from a query-param value source, or from a path suffix. `"next-link"` ignores `urlTemplate` when composing URLs (it follows the next control).
 
-`urlTemplate` is a **string** or an **object**. An object must define **exactly one** of `template` or `source`.
+`urlTemplate` is a **string** or an **object**. An object must define **exactly one** of `template`, `source`, or `pathSuffix`.
 
-In the browser editor, choose **URL template kind** `Static template` (string / `{ template }`) or `Value source` (same Value Source controls as Content Manager), plus **Copy page query params**.
+In the browser editor, choose **URL template kind** `Static template` (string / `{ template }`), `Value source` (same Value Source controls as Content Manager), or `Path suffix`, plus **Copy page query params**.
 
-| Form          | Example                                                            | Notes                                                                                                          |
-| ------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| String        | `"/page/{{NUMBER}}"`                                               | Same as `{ template: " ...", copyPageQueryParams: true }`                                                      |
-| Static object | `{ template: "/page/{{NUMBER}}/", copyPageQueryParams?: boolean }` | `template` must include `{{NUMBER}}` and be a path starting with `/` or an absolute `http://` / `https://` URL |
-| Source object | `{ source: ValueSource, copyPageQueryParams?: boolean }`           | Resolves against the live document/tab; the string result must include `{{NUMBER}}`                            |
+| Form          | Example                                                            | Notes                                                                                                                                          |
+| ------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| String        | `"/page/{{NUMBER}}"`                                               | Same as `{ template: " ...", copyPageQueryParams: true }`                                                                                      |
+| Static object | `{ template: "/page/{{NUMBER}}/", copyPageQueryParams?: boolean }` | `template` must include `{{NUMBER}}` and be a path starting with `/` or an absolute `http://` / `https://` URL                                 |
+| Source object | `{ source: ValueSource, copyPageQueryParams?: boolean }`           | A `query-param` source uses `key` as the page parameter. Any other source resolves against the live document/tab to a string with `{{NUMBER}}` |
+| Path suffix   | `{ pathSuffix: "/page/{{NUMBER}}", copyPageQueryParams?: boolean }` | Appends the suffix to the tab pathname after removing one trailing match of that suffix                                                       |
 
 | Field                 | Default | What it does                                                                              |
 | --------------------- | ------- | ----------------------------------------------------------------------------------------- |
 | `copyPageQueryParams` | `true`  | When context resolves, copies the current tab’s query string onto every numbered page URL |
 
-Resolution runs once when the module builds pagination context. Numbered strategies substitute `{{NUMBER}}`, then merge that snapshotted query.
+Resolution runs once when the module builds pagination context. When the template contains `{{NUMBER}}`, numbered strategies substitute it and then merge the snapshotted query. When the source is `query-param`, they keep the tab pathname, merge the snapshotted query, and set `key` to the page being fetched. A `pathSuffix` resolves to a `{{NUMBER}}` template from the tab pathname before that substitution.
+
+**Page query parameter (`page`):**
+
+```ts
+urlTemplate: {
+  source: {
+    source: "query-param",
+    key: "page",
+  },
+}
+```
+
+On `/list?q=cats&page=2`, the next page URL is `/list?q=cats&page=3`. The pathname stays `/list`. Copied params such as `q` stay, and `page` is the fetched page number. When `page` is absent, the current page number is the strategy fallback (`1`, or `0` when numbering starts at zero).
+
+**Path suffix (`/page/{{NUMBER}}`):**
+
+```ts
+urlTemplate: {
+  pathSuffix: "/page/{{NUMBER}}",
+  copyPageQueryParams: true,
+}
+```
+
+| Pathname          | Resolved template          | Page read |
+| ----------------- | -------------------------- | --------- |
+| `/`               | `/page/{{NUMBER}}`         | fallback  |
+| `/catalog/`       | `/catalog/page/{{NUMBER}}` | fallback  |
+| `/catalog/page/2` | `/catalog/page/{{NUMBER}}` | `2`       |
+
+On `/catalog/page/2?q=cats`, the next page URL is `/catalog/page/3?q=cats`. The suffix is trailing: `/catalog/page/2/extra` keeps that path and appends the suffix.
+
+A pager link contributes its page number when the link pathname ends with `pathSuffix`. Relative hrefs resolve against the current tab URL before that match.
 
 **Keep search params (common on search result pages):**
 
@@ -311,6 +369,8 @@ Value source details: [Value source](../utils/value-source.md).
 | `"incremental"` | Builds URLs with page numbers increasing from the current page via `urlTemplate`                                            |
 | `"decremental"` | Same as incremental with next/previous numbering swapped                                                                    |
 
+With a DOM context manager, incremental and decremental strategies fetch further pages only when page-index numbers resolve a last page, unless `ignoreLastPage` is `true`. A URL context manager has no pager, so those strategies still build the configured page count from the URL template.
+
 Numbered strategy fields (`"incremental"` / `"decremental"`):
 
 | Field                          | Default       | What you set                                           |
@@ -323,9 +383,9 @@ Numbered strategy fields (`"incremental"` / `"decremental"`):
 On `CONTENT_LOADED` (live tab document only), a load run:
 
 1. Reads `SuperMonkey.loadedIntegration?.contentManager`. When Content Manager is missing, the module skips fetching.
-2. Checks every binder key with `hasListingContext(document, groupKey)`. This includes the group's listing `pageFilter`, so only groups with an active listing context match.
-3. Processes all matching group binders sequentially in `groups` key order. A group whose **Pages to Load (`groupKey`)** preference is `0` skips fetching.
-4. For each enabled group, resolves its pagination context, validates its strategy, and fetches each additional page. After each fetch it republishes `CONTENT_LOADED` with the fetched `Document` so Content Manager runs a full scan and remaining cards append into the live listing containers.
+2. Keeps binder keys whose Content Manager listing matches the document (`hasListingContext`, including the listing `pageFilter`) and whose binder `pageFilter` passes the active mapped-page names. See [Page filter](#page-filter).
+3. Processes all matching group binders sequentially in `groups` key order. A group whose **Pages to Load (`groupKey`)** preference is `0` skips the counted fetch. When **Load Until Visible Item** is on, that group still requests further pages while the latest Content Manager listing scan kept no items.
+4. For each enabled group, resolves its pagination context, validates its strategy, and fetches each additional page. After each fetch it republishes `CONTENT_LOADED` with the fetched `Document` so Content Manager runs a full scan and remaining cards append into the live listing containers. With **Load Until Visible Item** on, each fetched page asks `hasListingItems()` after that scan. Kept items in any group stop every remaining binder. The extra fetch also stops when the strategy has no next page.
 
 Handlers ignore `CONTENT_LOADED` when `document` is not the live tab document (so a republished foreign document does not start another load run).
 
@@ -337,13 +397,18 @@ When **every** tracked page is `done`, it applies paginator pointers (DOM manage
 
 The module adds a [progress menu](./notification-bar.md#progress-menu) on the Notification Bar. Failed pages show **Retry**. The menu host is `progress` while work runs, then `error` or `done` when nothing remains in `progress`.
 
+For an incremental or decremental group, the menu subtitle reads `Page: {current} of {total}` once that group's last page number is known. Labels follow `numberingLabelStartsFromZero`. Several numbered groups in one run prefix each summary with its group key. A next-link group leaves the subtitle unset.
+
+The icon stays off the bar while every group's **Pages to Load** preference is `0` and **Load Until Visible Item** is off. Raising any group above `0`, or turning that preference on, shows the icon again.
+
 ## Runtime configurations
 
 Shown in the Configuration Menu (end-user preferences, not integration opts):
 
 | Configuration                                    | Scope     | Default | Min    | Max      | Description                                          |
 | ------------------------------------------------ | --------- | ------- | ------ | -------- | ---------------------------------------------------- |
-| **Pages to Load (`groupKey`)**                   | per group | `0`     | `0`    | `99`     | How many pages that group fetches (`0` skips it)     |
+| **Pages to Load (`groupKey`)**                   | per group | `0`     | `0`    | `99`     | How many pages that group fetches (`0` skips the counted fetch) |
+| **Load Until Visible Item** (`loadUntilVisible`) | global    | off     |        |          | Keeps fetching the next page until Content Manager keeps items for any group |
 | **Page Load Interval (ms)** (`pageLoadInterval`) | global    | `1000`  | `100`  | `10000`  | Delay between page requests                          |
 | **Page Load Timeout (ms)** (`pageLoadTimeout`)   | global    | `10000` | `1000` | `180000` | Per-request timeout                                  |
 
@@ -355,18 +420,21 @@ Each per-group preference displays the Content Manager group key in its label. T
 
 | Outcome    | When                                                                                                                                                                                                                                                                                                               |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Reject** | Raw opts are not an object; `groups` is missing or not an object; top-level `contextManager` / `pagingStrategy` fields are present; or no usable group binder remains.                                                                                                                                               |
-| **Repair** | Empty group keys and unusable binders are dropped; malformed optional fields are dropped (`ignoreLastPage`, optional selectors, `pageRequestOpts`, optional `urlTemplate` on `dom`). A binder is unusable when its required context manager / strategy pair, selectors, or numbered URL template cannot be normalized. |
+| **Reject** | Raw opts are not an object; `groups` is missing or not an object; or no usable group binder remains.                                                                                                                                               |
+| **Repair** | Empty group keys and unusable binders are dropped; malformed optional fields are dropped (`ignoreLastPage`, optional selectors, `pageFilter`, `pageRequestOpts`, optional `urlTemplate` on `dom`). A binder is unusable when its required context manager / strategy pair, selectors, or numbered URL template cannot be normalized. |
 
 The loader constructs `AdditionalPages` with the cleaned `value`. Repair findings log as WARN (`Module options were repaired:`). A missing `value` logs FATAL for that instance.
 
 ## Authoring checklist
 
 - Name every `groups` key after the exact [Content Manager group](./content-manager.md#groups) it extends.
+- Set a binder `pageFilter` when that group should load extra pages only on some mapped pages. The listing `pageFilter` still has to match as well.
 - Wire that group's [Content Manager listings](./content-manager.md#listings) to match both the live page and the HTML of fetched pages.
 - Choose [paging shape](#pick-a-paging-shape) from how the site actually paginates (next link vs numbered URL).
 - For numbered URLs that keep filters/search in the query string, prefer `copyPageQueryParams` (default) or a `source` template built from the live path.
-- Set `ignoreLastPage: true` when visible page indexes are incomplete or misleading.
+- For a page number in a trailing path suffix, set `pathSuffix` to that suffix, such as `/page/{{NUMBER}}`.
+- For a page query parameter, set `urlTemplate.source` to `{ source: "query-param", key: "<param>" }`. Fetched URLs keep the tab pathname and write the page number to that key after any copied query params.
+- Set `ignoreLastPage: true` when visible page indexes are incomplete or misleading, or when the pager is absent and numbered strategies should still fetch the configured page count.
 - Use `pageIndexDecoration` when status/classes should sit on an ancestor of the page-index match (for example match `a` and decorate `li`), including `loadedPageClassNames` for the site’s loaded-page look.
 - Leave each group's **Pages to Load (`groupKey`)** preference for the user; default `0` means that group does not load additional pages.
 

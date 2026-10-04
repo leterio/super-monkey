@@ -11,6 +11,8 @@ type BaseResource = {
     readonly element: HTMLElement;
     /** Mapping key that produced this resource. */
     readonly mappedBy: string;
+    /** Decoration container that received this resource’s download control. */
+    decoratedElement?: HTMLElement;
 };
 
 /** Single downloadable resource matched from a leaf mapping. */
@@ -88,6 +90,7 @@ export type ResourcesMappingLeaf = BaseResourcesMapping & {
     readonly urlSources: (string | ValueSource)[];
     /** Download mode name. Defaults to `"download"`. */
     readonly downloadMode?: string;
+    readonly sendReferer?: boolean;
 };
 
 /** Mapping that matches a container and scans nested mapping keys inside it. */
@@ -95,6 +98,8 @@ export type ResourcesMappingCollection = BaseResourcesMapping & {
     readonly type: "collection";
     /** Mapping keys to scan inside each matched container. */
     readonly children: string[];
+    /** When true, a single child leaf stays inside this collection. */
+    readonly keepSingleLeaf?: boolean;
 };
 
 /** Leaf or collection mapping entry under ResourcesDownloader `mappings`. */
@@ -121,10 +126,16 @@ export type DocumentDownloadStep = {
      * Element sources need at least one `selectors` entry so values resolve inside the fetched document.
      */
     readonly valueSource: ValueSource;
+    /**
+     * `"priority"` uses the first selector that yields a URL and ignores the rest.
+     * Omitted combines every selector match.
+     */
+    readonly selectorMatch?: "priority";
     readonly method?: string;
     readonly headers?: Record<string, string>;
     readonly data?: DownloadRequestData;
     readonly timeout?: number;
+    readonly sendReferer?: boolean;
 };
 
 /** Final transfer step that saves the current branch URL via `GM_download`. */
@@ -132,6 +143,7 @@ export type FinalDownloadStep = {
     readonly mode: "download";
     readonly headers?: Record<string, string>;
     readonly timeout?: number;
+    readonly sendReferer?: boolean;
 };
 
 /** One step in a custom download pipeline. The last step must be `download`. */

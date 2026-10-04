@@ -21,7 +21,7 @@ A module exposes stored preferences and click actions through `Module.configurat
 
 Constructors take `moduleName` first (`moduleName`, `key`, `defaultValue`, `opts?`). `Action` is (`moduleName`, `key`, `handler`, `opts`).
 
-`AbstractConfiguration` builds `{moduleName}::{settingKey}` with `mergeIds`. `moduleName` is already `{integration}::{instance}`. `settingKey` is one id segment (`[A-Za-z0-9_-]+`).
+`AbstractConfiguration` builds the storage key with `mergeIds(moduleName, settingKey)`. `moduleName` is already `{integration}::{instance}`. `settingKey` is one id segment (`[A-Za-z0-9_-]+`) or several segments joined by `::`.
 
 Reads, writes, and watchers go through `getValue` / `setValue` / `watch` (`src/supermonkey/utils/value.ts`). Setting `value` to `null` deletes the Tampermonkey key. A non-null set that fails `isValid` throws. The constructor default must pass `isValid` (`assertValidDefault` on typed subclasses).
 
